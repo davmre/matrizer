@@ -1,0 +1,9 @@
+# normal equations for linear regression
+
+X: d x n
+y: n x 1
+
+n ~ 100
+d ~ 5
+
+(X'X)^-1 X' y

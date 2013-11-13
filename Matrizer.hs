@@ -4,69 +4,13 @@ import Control.Monad
 import Control.Monad.Error
 import Numeric
 
-type SymbolTable = Map.Map Char Matrix
-
-data MTree = Leaf Char | Branch1 UnOp MTree | Branch2 BinOp MTree MTree 
-data BinOp = MProduct | MSum
-data UnOp = MInverse | MTranspose | MNegate 
-data Matrix = Matrix Int Int [MProperty]
-data MProperty = Symmetric | PosDef | Diagonal  deriving (Eq)  
+import Parsing
 
 
-showBinOp :: BinOp -> String
-showBinOp MProduct = "*"
-showBinOp MSum = "+"
-instance Show BinOp where show = showBinOp
 
-showUnOp :: UnOp -> String
-showUnOp MInverse = "inv"
-showUnOp MTranspose = "transpose"
-showUnOp MNegate = "neg"
-instance Show UnOp where show = showUnOp
-
-showTree :: MTree -> String
-showTree (Leaf a) = [a]
-showTree (Branch1 op c) = "(" ++ show op ++ " " ++ showTree c ++ ")"
-showTree (Branch2 op a b) = "(" ++ show op ++ " " ++ showTree a ++ " " ++ showTree b ++ ")"
-instance Show MTree where show = showTree
-
-showMProperty :: MProperty -> String
-showMProperty Symmetric = "symmetric"
-showMProperty PosDef = "posdef"
-showMProperty Diagonal = "diag"
-instance Show MProperty where show = showMProperty
-
-showMatrix :: Matrix -> String
-showMatrix (Matrix rows cols props) = (show rows) ++ "x" ++ (show cols) ++ " " ++ (show props)
-instance Show Matrix where show = showMatrix
-
-showDim :: Matrix -> String
-showDim (Matrix r c props) =  (show r) ++ "x" ++ (show c)
 
 -------------------------------------------------------------
 
-data MError = SizeMismatch BinOp Matrix Matrix 
-            | InvalidOp UnOp Matrix
-            | UnboundName Char
-            | Default String
-
-showError :: MError -> String
-showError (SizeMismatch op m1 m2) = "Invalid matrix dimensions for operation (" ++ showDim m1 ++ ") " ++ show op ++ " (" ++ showDim m2 ++ ")"
-showError (UnboundName c) = "Undefined matrix name " ++ show c
-showError (InvalidOp op m) = "Invalid operation '" ++ show op ++ "' on matrix " ++ show m 
-
-instance Show MError where show = showError
-
-instance Error MError where
-         noMsg = Default "An error has occurred"
-         strMsg = Default
-
-type ThrowsError = Either MError
-
-trapError action = catchError action (return . show)
-
-extractValue :: ThrowsError a -> a
-extractValue (Right val) = val
 
 -------------------------------------------------------------
 

@@ -1,0 +1,8 @@
+# normal equations for linear regression
+
+A: n x n
+B: n x n
+x: n x 1
+n ~ 100
+
+ABx
