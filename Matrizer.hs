@@ -1,3 +1,5 @@
+module Main where
+
 import Data.Ratio
 import qualified Data.Map as Map
 import Control.Monad
@@ -112,3 +114,4 @@ fakeSymbols = Map.fromList [('A', Matrix 1000 1000 []), ('B', Matrix 1000 1000 [
 fakeTree :: MTree
 fakeTree = Branch2 MProduct (Branch2 MProduct (Leaf 'A') (Leaf 'B')) (Leaf 'x')
 
+main = putStrLn "hello"

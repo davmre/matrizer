@@ -1,3 +1,5 @@
+module Parsing where
+
 import Control.Applicative((<*))
 import Text.Parsec
 import Text.Parsec.String
@@ -101,7 +103,7 @@ type SymbolMapping = Map.Map Char Int
 
 data MatrixSym = MatrixSym String String [MProperty]
 data Matrix = Matrix Int Int [MProperty] 
-data MProperty = Symmetric | PosDef | Diagonal 
+data MProperty = Symmetric | PosDef | Diagonal deriving Eq
 
 showMProperty :: MProperty -> String
 showMProperty Symmetric = "symmetric"
