@@ -1,4 +1,4 @@
-# normal equations for linear regression
+# simple matrix-vector multiplication
 
 A: n x n
 B: n x n
