@@ -1,10 +1,9 @@
 module Main where
 
-import Data.Ratio
 import qualified Data.Map as Map
 import Control.Monad
 import Control.Monad.Error
-import Numeric
+import System.Environment
 
 import Parsing
 
@@ -107,11 +106,26 @@ treeFLOPs (Branch1 MTranspose t) tbl = treeFLOPs t tbl
 treeFLOPs (Branch1 MNegate t) tbl = treeFLOPs t tbl
 
 ------------------------------------------------------------
-
 fakeSymbols :: SymbolTable
 fakeSymbols = Map.fromList [('A', Matrix 1000 1000 []), ('B', Matrix 1000 1000 []), ('x', Matrix 1000 1 [])]
 
 fakeTree :: MTree
 fakeTree = Branch2 MProduct (Branch2 MProduct (Leaf 'A') (Leaf 'B')) (Leaf 'x')
 
-main = putStrLn "hello"
+dumpInfo :: SymbolTable -> MTree -> ThrowsError String
+dumpInfo tbl tree = do matr <- treeMatrix tree tbl
+                       flops <- treeFLOPs tree tbl
+                       return $ "Symbol table: " ++ show tbl ++ "\nParsed as: " ++ show tree ++ "\nResulting matrix: " ++ show matr ++ "\nNaive FLOPs required: " ++ show flops ++ "\nNaive code generated: " ++ generateNumpy tree
+
+errorStr :: ThrowsError String -> String
+errorStr ts = case ts of 
+               Left err -> show err
+               Right s -> s
+
+main = do args <- getArgs
+          let infile = head args
+          inp <- readFile infile
+          case readInput inp of
+            Left err -> print err
+            Right (tbl, tree) -> putStrLn $ errorStr $ dumpInfo tbl tree
+            
