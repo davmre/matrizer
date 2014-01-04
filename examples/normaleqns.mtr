@@ -1,6 +1,6 @@
 # normal equations for linear regression
 
-X: d x n
+X: n x d
 y: n x 1
 
 n ~ 100
