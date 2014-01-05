@@ -14,40 +14,15 @@ linespaces :: Parser()
 linespaces = skipMany $ oneOf " \t"
 
 ----------------------------------------------------------------------
-
-
-data MError = SizeMismatch BinOp Matrix Matrix 
-            | InvalidOp UnOp Matrix
-            | UnboundName Char
-            | Default String
-            | BadDimension String
-            | Parser ParseError
-
-showError :: MError -> String
-showError (SizeMismatch op m1 m2) = "Invalid matrix dimensions for operation (" ++ showDim m1 ++ ") " ++ show op ++ " (" ++ showDim m2 ++ ")"
-showError (UnboundName c) = "Undefined matrix name " ++ show c
-showError (InvalidOp op m) = "Invalid operation '" ++ show op ++ "' on matrix " ++ show m 
-showError (BadDimension d) = "Invalid dimension specification'" ++ show d ++ "'"
-showError (Parser err) = "Parse error at " ++ show err
-
-instance Show MError where show = showError
-
-instance Error MError where
-         noMsg = Default "An error has occurred"
-         strMsg = Default
-
-type ThrowsError = Either MError
-
-trapError action = catchError action (return . show)
-
-extractValue :: ThrowsError a -> a
-extractValue (Right val) = val
-
-
+-- AST Definition
 -----------------------------------------------------------------------
+
 data MTree = Leaf Char | Branch1 UnOp MTree | Branch2 BinOp MTree MTree 
 data BinOp = MProduct | MSum
 data UnOp = MInverse | MTranspose | MNegate 
+
+------------------------------------------------------------------------
+-- Pretty printing
 
 showBinOp :: BinOp -> String
 showBinOp MProduct = "*"
@@ -65,6 +40,11 @@ showTree (Leaf a) = [a]
 showTree (Branch1 op c) = "(" ++ show op ++ " " ++ showTree c ++ ")"
 showTree (Branch2 op a b) = "(" ++ show op ++ " " ++ showTree a ++ " " ++ showTree b ++ ")"
 instance Show MTree where show = showTree
+
+
+----------------------------------------------------------------------------------------------
+-- Lexer
+----------------------------------------------------------------------------------------------
 
 token_def = emptyDef{ commentStart = "\"\"\""
                     , commentEnd = "\"\"\""
@@ -97,12 +77,67 @@ term = m_parens exprparser
 
 
 ---------------------------------------------------------------------------------------------------
+-- Error definitions
+
+-- Datatype for errors --
+data MError = SizeMismatch BinOp Matrix Matrix 
+            | InvalidOp UnOp Matrix
+            | UnboundName Char
+            | Default String
+            | BadDimension String
+            | Parser ParseError
+
+showError :: MError -> String
+showError (SizeMismatch op m1 m2) = "Invalid matrix dimensions for operation (" ++ showDim m1 ++ ") " ++ show op ++ " (" ++ showDim m2 ++ ")"
+showError (InvalidOp op m) = "Invalid operation '" ++ show op ++ "' on matrix " ++ show m 
+showError (UnboundName c) = "Undefined matrix name " ++ show c
+showError (Default s) = "Default Error???" ++ show s
+showError (BadDimension d) = "Invalid dimension specification'" ++ show d ++ "'"
+showError (Parser err) = "Parse error at " ++ show err
+
+instance Show MError where show = showError
+
+instance Error MError where
+         noMsg = Default "An error has occurred"
+         strMsg = Default
+
+type ThrowsError = Either MError
+
+trapError action = catchError action (return . show)
+
+extractValue :: ThrowsError a -> a
+extractValue (Right val) = val
+
+---------------------------------------------------------------------------
+
 
 type SymbolTable = Map.Map Char Matrix
-type SymbolMapping = Map.Map Char Int
+type SizeTable = Map.Map Char Int
+
+------------------------------
+-- # Symbol table
+-- # Symbol : Size Expression
+-- A: n x n
+-- B: A x n
+-- x: n x 1
+-- n ~ 100
+-- # Program
+-- ABx
+--
+------------------------------
 
 data MatrixSym = MatrixSym String String [MProperty]
 data Matrix = Matrix Int Int [MProperty] 
+--------------------------------------------
+-- Arjun comment:
+-- The parser reads in the symbol table, where each line is a
+-- MatrixSym (i.e. "A: n x n" is a MatrixSym Varsize "n" Varsize "n"
+-- []). But eventually we want all the Varsizes to be concrete
+-- integers, which eventually gets converted to type Matrix. Not sure
+-- this is the best way, what about statically checking that the Size
+-- constructor is of the "LitSize" type and not the "VarSize" type...?
+--------------------------------------------
+
 data MProperty = Symmetric | PosDef | Diagonal deriving Eq
 
 showMProperty :: MProperty -> String
@@ -120,6 +155,10 @@ showDim (Matrix r c props) =  (show r) ++ "x" ++ (show c)
 showMatrixSym (MatrixSym rows cols props) = (show rows) ++ "x" ++ (show cols) ++ " " ++ (show props)
 instance Show MatrixSym where show = showMatrixSym
 
+------------------------------------------------------------
+-- Actual Parsing Code for the symbol table
+------------------------------------------------------------
+
 
 parseMProp :: Parser MProperty
 parseMProp = do propName <- many1 letter
@@ -133,22 +172,23 @@ parseMProp = do propName <- many1 letter
 parsePropList :: Parser [MProperty]
 parsePropList = sepBy parseMProp $ many1 $ oneOf " \t,"
 
-data ParsedLine = MatrixLine Char MatrixSym | SymbolLine Char Int | Dummy  deriving (Show)
-parseMatrix :: Parser ParsedLine
+data PreambleLine = MatrixLine Char MatrixSym | SymbolLine Char Int | BlankLine  deriving (Show)
+parseMatrix :: Parser PreambleLine
 parseMatrix = do linespaces
                  c <- letter
+                 linespaces
                  char ':'
                  linespaces
-                 sym1 <- (liftM (:[]) letter <|> many1 digit)
+                 sym1 <- ((liftM (:[]) letter) <|> many1 digit)
                  linespaces
                  char 'x'
                  linespaces
-                 sym2 <- (liftM (:[]) letter <|> many1 digit)
+                 sym2 <- ((liftM (:[]) letter) <|> many1 digit)
                  linespaces
                  propList <- parsePropList
                  return $ MatrixLine c (MatrixSym sym1 sym2 propList)
 
-parseSymbolDef :: Parser ParsedLine
+parseSymbolDef :: Parser PreambleLine
 parseSymbolDef = do linespaces
                     c <- letter
                     linespaces
@@ -160,16 +200,16 @@ parseSymbolDef = do linespaces
 parseComment :: Parser String
 parseComment = char '#' >> many (noneOf "\n")
                    
-parseDummyLine :: Parser ParsedLine
-parseDummyLine = do linespaces
+parseBlankLine :: Parser PreambleLine
+parseBlankLine = do linespaces
                     optional parseComment
-                    return Dummy
+                    return BlankLine
                      
 
-parsePreamble :: Parser [ParsedLine]
-parsePreamble = endBy ((try parseSymbolDef) <|> (try parseMatrix) <|> parseDummyLine) (char '\n')
+parsePreamble :: Parser [PreambleLine]
+parsePreamble = endBy ((try parseSymbolDef) <|> (try parseMatrix) <|> parseBlankLine) (char '\n')
 
-parseInput :: Parser ([ParsedLine], MTree)
+parseInput :: Parser ([PreambleLine], MTree)
 parseInput = do lines <- parsePreamble
                 spaces
                 tree <- exprparser
@@ -178,8 +218,8 @@ parseInput = do lines <- parsePreamble
 
 ------------------------------------------------------------------
 
-subSymbolDefMatrix :: (Char, MatrixSym) -> Map.Map Char Int -> ThrowsError (Char, Matrix)
-subSymbolDefMatrix (c, (MatrixSym sym1 sym2 propList)) defs = do n1 <- subSymbolDef sym1 defs
+subSymbolDefMatrix :: Map.Map Char Int -> (Char, MatrixSym) -> ThrowsError (Char, Matrix)
+subSymbolDefMatrix defs (c, (MatrixSym sym1 sym2 propList)) = do n1 <- subSymbolDef sym1 defs
                                                                  n2 <- subSymbolDef sym2 defs
                                                                  return (c, Matrix n1 n2 propList)
 
@@ -191,10 +231,10 @@ subSymbolDef s defs = case reads s of
                       where c = (s !! 0)
 
 
-subPreamble :: [ParsedLine] -> ThrowsError SymbolTable
+subPreamble :: [PreambleLine] -> ThrowsError SymbolTable
 subPreamble preamble = let matrices = [(c,n) | (MatrixLine c n)  <- preamble]
                            defs = Map.fromList [(c,n) | (SymbolLine c n) <- preamble]
-                           mapped = mapM ((flip subSymbolDefMatrix) defs) matrices 
+                           mapped = mapM (subSymbolDefMatrix defs) matrices 
                        in (liftM Map.fromList) mapped
 
 readInput :: String -> ThrowsError (SymbolTable, MTree)
