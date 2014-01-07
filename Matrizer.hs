@@ -5,6 +5,7 @@ import Control.Monad
 import Control.Monad.Error
 import System.Environment
 
+import MTypes
 import Parsing
 
 

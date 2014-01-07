@@ -1,5 +1,6 @@
 module Parsing where
 
+import qualified Data.Map as Map
 import Control.Applicative((<*))
 import Text.Parsec
 import Text.Parsec.String
@@ -8,38 +9,13 @@ import Text.Parsec.Token
 import Text.Parsec.Language
 import Control.Monad
 import Control.Monad.Error
-import qualified Data.Map as Map
+
+import MTypes
 
 linespaces :: Parser()
 linespaces = skipMany $ oneOf " \t"
 
-----------------------------------------------------------------------
--- AST Definition
------------------------------------------------------------------------
 
-data MTree = Leaf Char | Branch1 UnOp MTree | Branch2 BinOp MTree MTree 
-data BinOp = MProduct | MSum
-data UnOp = MInverse | MTranspose | MNegate 
-
-------------------------------------------------------------------------
--- Pretty printing
-
-showBinOp :: BinOp -> String
-showBinOp MProduct = "*"
-showBinOp MSum = "+"
-instance Show BinOp where show = showBinOp
-
-showUnOp :: UnOp -> String
-showUnOp MInverse = "inv"
-showUnOp MTranspose = "transpose"
-showUnOp MNegate = "neg"
-instance Show UnOp where show = showUnOp
-
-showTree :: MTree -> String
-showTree (Leaf a) = [a]
-showTree (Branch1 op c) = "(" ++ show op ++ " " ++ showTree c ++ ")"
-showTree (Branch2 op a b) = "(" ++ show op ++ " " ++ showTree a ++ " " ++ showTree b ++ ")"
-instance Show MTree where show = showTree
 
 
 ----------------------------------------------------------------------------------------------
@@ -75,44 +51,9 @@ table = [ [Prefix (m_reservedOp "-" >> return (Branch1 MNegate))] -- note: this 
 term = m_parens exprparser
        <|> fmap Leaf letter
 
-
----------------------------------------------------------------------------------------------------
--- Error definitions
-
--- Datatype for errors --
-data MError = SizeMismatch BinOp Matrix Matrix 
-            | InvalidOp UnOp Matrix
-            | UnboundName Char
-            | Default String
-            | BadDimension String
-            | Parser ParseError
-
-showError :: MError -> String
-showError (SizeMismatch op m1 m2) = "Invalid matrix dimensions for operation (" ++ showDim m1 ++ ") " ++ show op ++ " (" ++ showDim m2 ++ ")"
-showError (InvalidOp op m) = "Invalid operation '" ++ show op ++ "' on matrix " ++ show m 
-showError (UnboundName c) = "Undefined matrix name " ++ show c
-showError (Default s) = "Default Error???" ++ show s
-showError (BadDimension d) = "Invalid dimension specification'" ++ show d ++ "'"
-showError (Parser err) = "Parse error at " ++ show err
-
-instance Show MError where show = showError
-
-instance Error MError where
-         noMsg = Default "An error has occurred"
-         strMsg = Default
-
-type ThrowsError = Either MError
-
-trapError action = catchError action (return . show)
-
-extractValue :: ThrowsError a -> a
-extractValue (Right val) = val
-
----------------------------------------------------------------------------
-
-
-type SymbolTable = Map.Map Char Matrix
-type SizeTable = Map.Map Char Int
+------------------------------------------------------------
+-- Parsing Code for the preamble / symbol table 
+------------------------------------------------------------
 
 ------------------------------
 -- # Symbol table
@@ -126,40 +67,6 @@ type SizeTable = Map.Map Char Int
 --
 ------------------------------
 
-data MatrixSym = MatrixSym String String [MProperty]
-data Matrix = Matrix Int Int [MProperty] 
---------------------------------------------
--- Arjun comment:
--- The parser reads in the symbol table, where each line is a
--- MatrixSym (i.e. "A: n x n" is a MatrixSym Varsize "n" Varsize "n"
--- []). But eventually we want all the Varsizes to be concrete
--- integers, which eventually gets converted to type Matrix. Not sure
--- this is the best way, what about statically checking that the Size
--- constructor is of the "LitSize" type and not the "VarSize" type...?
---------------------------------------------
-
-data MProperty = Symmetric | PosDef | Diagonal deriving Eq
-
-showMProperty :: MProperty -> String
-showMProperty Symmetric = "symmetric"
-showMProperty PosDef = "posdef"
-showMProperty Diagonal = "diag"
-instance Show MProperty where show = showMProperty
-
-showMatrix (Matrix rows cols props) = (show rows) ++ "x" ++ (show cols) ++ " " ++ (show props)
-instance Show Matrix where show = showMatrix
-
-showDim :: Matrix -> String
-showDim (Matrix r c props) =  (show r) ++ "x" ++ (show c)
-
-showMatrixSym (MatrixSym rows cols props) = (show rows) ++ "x" ++ (show cols) ++ " " ++ (show props)
-instance Show MatrixSym where show = showMatrixSym
-
-------------------------------------------------------------
--- Actual Parsing Code for the symbol table
-------------------------------------------------------------
-
-
 parseMProp :: Parser MProperty
 parseMProp = do propName <- many1 letter
                 return $ case propName of
@@ -172,7 +79,6 @@ parseMProp = do propName <- many1 letter
 parsePropList :: Parser [MProperty]
 parsePropList = sepBy parseMProp $ many1 $ oneOf " \t,"
 
-data PreambleLine = MatrixLine Char MatrixSym | SymbolLine Char Int | BlankLine  deriving (Show)
 parseMatrix :: Parser PreambleLine
 parseMatrix = do linespaces
                  c <- letter
@@ -216,7 +122,10 @@ parseInput = do lines <- parsePreamble
                 spaces
                 return (lines, tree)
 
-------------------------------------------------------------------
+--------------------------------------------------------------------------------------
+-- Symbol table evaluation: ground out all variable sizes into literal
+-- sizes (i.e. convert MatrixSym to Matrix).
+--------------------------------------------------------------------------------------
 
 subSymbolDefMatrix :: Map.Map Char Int -> (Char, MatrixSym) -> ThrowsError (Char, Matrix)
 subSymbolDefMatrix defs (c, (MatrixSym sym1 sym2 propList)) = do n1 <- subSymbolDef sym1 defs
@@ -242,6 +151,8 @@ readInput s = do (lines, tree) <- readOrThrow parseInput s
                  table <- subPreamble lines
                  return (table, tree)
 
+-----------------------------------------------------------------
+-- Test/debugging stuff
 -----------------------------------------------------------------
 
 readOrThrow :: Parser a -> String -> ThrowsError a
