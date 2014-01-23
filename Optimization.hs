@@ -135,7 +135,7 @@ mapMaybeFunc x (f:fs) =
 -- optimizationRules. This list is consulted by optimizeNode to
 -- generate all possible transformed versions of a subtree.
 
-binopSumRules = [commonFactorRight]
+binopSumRules = [commonFactorLeft, commonFactorRight]
 binopProductRules = [assocMult]
 optimizationRules = binopSumRules ++ binopProductRules
 
@@ -150,6 +150,13 @@ commonFactorRight (Branch2 MSum (Branch2 MProduct l1 l2) (Branch2 MProduct r1 r2
      then Just (Branch2 MProduct (Branch2 MSum l1 r1) l2)
      else Nothing
 commonFactorRight _ = Nothing
+
+commonFactorLeft :: MTree -> Maybe MTree
+commonFactorLeft (Branch2 MSum (Branch2 MProduct l1 l2) (Branch2 MProduct r1 r2)) = 
+  if (l1 == r1) 
+     then Just (Branch2 MProduct l1 (Branch2 MSum l2 r2))
+     else Nothing
+commonFactorLeft _ = Nothing
 
 -- cancelInverseCheck :: MZipper -> Boolean
 -- cancelInverseCheck (Branch2 MProduct (Branch1 MInverse linv) r, bs) = eq linv r

@@ -1,0 +1,7 @@
+A: n x n
+B: n x n
+C: n x n
+n ~ 100
+
+# should optimize to A(B+C)
+A*B + A*C
