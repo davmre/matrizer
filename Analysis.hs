@@ -73,7 +73,7 @@ treeFLOPs (Branch2 MProduct t1 t2) tbl = do (Matrix r1 c1 props1) <- treeMatrix 
                                             (Matrix r2 c2 props2) <- treeMatrix t2 tbl
                                             flops1 <- treeFLOPs t1 tbl
                                             flops2 <- treeFLOPs t2 tbl
-                                            return $ r1 * c2 * (2*c2 - 1) + flops1 + flops2
+                                            return $ r1 * c2 * (2*c1 - 1) + flops1 + flops2
 treeFLOPs (Branch2 MSum t1 t2) tbl = do (Matrix r1 c1 props1) <- treeMatrix t1 tbl
                                         (Matrix r2 c2 props2) <- treeMatrix t2 tbl
                                         flops1 <- treeFLOPs t1 tbl
