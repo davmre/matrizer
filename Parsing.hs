@@ -40,7 +40,7 @@ TokenParser{ parens = m_parens
 
 
 exprparser :: Parser MTree
-exprparser = buildExpressionParser table term <?> "expression"
+exprparser = buildExpressionParser table whiteTerm <?> "expression"
 table = [ [Prefix (m_reservedOp "-" >> return (Branch1 MNegate))] -- note: this will parse A-B as A * (-B)
         , [Postfix (m_reservedOp "^-1" >> return (Branch1 MInverse))]
         , [Postfix (m_reservedOp "'" >> return (Branch1 MTranspose))]
@@ -48,8 +48,14 @@ table = [ [Prefix (m_reservedOp "-" >> return (Branch1 MNegate))] -- note: this 
         , [Infix (m_reservedOp "" >> return (Branch2 MProduct)) AssocLeft]
         , [Infix (m_reservedOp "+" >> return (Branch2 MSum)) AssocLeft]
         ]
-term = m_parens exprparser
-       <|> fmap Leaf letter
+term = m_parens exprparser <|> matrix 
+     where
+     matrix = do
+      c <- letter
+      m_whiteSpace
+      return $ Leaf c
+
+whiteTerm = term
 
 ------------------------------------------------------------
 -- Parsing Code for the preamble / symbol table 
