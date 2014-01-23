@@ -1,0 +1,6 @@
+A: n x n
+b: n x 1
+n ~ 100
+
+# should optimize to A\b
+A^-1b

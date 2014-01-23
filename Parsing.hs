@@ -29,7 +29,7 @@ token_def = emptyDef{ commentStart = "\"\"\""
                     , identLetter = oneOf ""
                     , opStart = oneOf "+-*'^" 
                     , opLetter = oneOf "+-*'^1"
-                    , reservedOpNames = ["+", "", "-", "*", "^-1", "'"]
+                    , reservedOpNames = ["+", "", "-", "*", "^-1", "'", "\\"]
                     }
 TokenParser{ parens = m_parens
            , identifier = m_identifier
@@ -46,6 +46,7 @@ table = [ [Prefix (m_reservedOp "-" >> return (Branch1 MNegate))] -- note: this 
         , [Postfix (m_reservedOp "'" >> return (Branch1 MTranspose))]
         , [Infix (m_reservedOp "*" >> return (Branch2 MProduct)) AssocLeft]
         , [Infix (m_reservedOp "" >> return (Branch2 MProduct)) AssocLeft]
+        , [Infix (m_reservedOp "\\" >> return (Branch2 MLinSolve)) AssocLeft]
         , [Infix (m_reservedOp "+" >> return (Branch2 MSum)) AssocLeft]
         ]
 term = m_parens exprparser <|> matrix 

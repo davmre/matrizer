@@ -9,7 +9,7 @@ import Control.Monad.Error
 -----------------------------------------------------------------------
 
 data MTree = Leaf Char | Branch1 UnOp MTree | Branch2 BinOp MTree MTree deriving (Eq, Ord)
-data BinOp = MProduct | MSum deriving (Eq, Ord)
+data BinOp = MProduct | MSum | MLinSolve deriving (Eq, Ord) 
 data UnOp = MInverse | MTranspose | MNegate deriving (Eq, Ord)
 
 
@@ -19,6 +19,7 @@ data UnOp = MInverse | MTranspose | MNegate deriving (Eq, Ord)
 showBinOp :: BinOp -> String
 showBinOp MProduct = "*"
 showBinOp MSum = "+"
+showBinOp MLinSolve = "\\"
 instance Show BinOp where show = showBinOp
 
 showUnOp :: UnOp -> String
