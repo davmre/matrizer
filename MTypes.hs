@@ -8,9 +8,11 @@ import Control.Monad.Error
 -- AST Definition
 -----------------------------------------------------------------------
 
-data MTree = Leaf Char | Branch1 UnOp MTree | Branch2 BinOp MTree MTree 
-data BinOp = MProduct | MSum
-data UnOp = MInverse | MTranspose | MNegate 
+data MTree = Leaf Char | Branch1 UnOp MTree | Branch2 BinOp MTree MTree deriving (Eq, Ord)
+data BinOp = MProduct | MSum deriving (Eq, Ord)
+data UnOp = MInverse | MTranspose | MNegate deriving (Eq, Ord)
+
+
 
 
 -- AST pretty printing

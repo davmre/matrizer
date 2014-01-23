@@ -1,0 +1,9 @@
+# simple matrix-vector multiplication
+
+A: n x n
+B: n x n
+x: n x 1
+n ~ 100
+
+# should optimize to A(Bx)
+ABx
