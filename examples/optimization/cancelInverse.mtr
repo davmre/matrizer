@@ -1,0 +1,5 @@
+A: n x n
+n ~ 100
+
+# should optimize to A
+(A^-1)^-1

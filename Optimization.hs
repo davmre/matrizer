@@ -156,9 +156,11 @@ mapMaybeFunc x (f:fs) =
 -- generate all possible transformed versions of a subtree.
 
 binopSumRules = [commonFactorLeft, commonFactorRight]
-binopProductRules = [assocMult, invToLinsolve, mergeToTernaryProduct]
+binopProductRules = [assocMult, invToLinsolve, mergeToTernaryProduct, factorInverse, factorTranspose]
 ternProductRules = [splitTernaryProductLeftAssoc, splitTernaryProductRightAssoc]
-optimizationRules = binopSumRules ++ binopProductRules ++ ternProductRules
+inverseRules = [distributeInverse, swapInverseTranspose, cancelDoubleInverse]
+transposeRules = [distributeTranspose, swapTransposeInverse]
+optimizationRules = inverseRules ++ transposeRules ++ binopSumRules ++ binopProductRules ++ ternProductRules
 
 assocMult tbl (Branch2 MProduct (Branch2 MProduct l c) r) = Just (Branch2 MProduct l (Branch2 MProduct c r))
 assocMult tbl (Branch2 MProduct l (Branch2 MProduct c r)) = Just (Branch2 MProduct (Branch2 MProduct l c) r)
@@ -182,7 +184,6 @@ invToLinsolve tbl (Branch2 MProduct (Branch1 MInverse l) r) = let Right (Matrix 
                                                               else Just (Branch2 MLinSolve l r)
 invToLinsolve tbl _ = Nothing               
 
-
 mergeToTernaryProduct tbl (Branch2 MProduct (Branch2 MProduct l c) r) = Just (Branch3 MTernaryProduct l c r)
 mergeToTernaryProduct tbl (Branch2 MProduct l (Branch2 MProduct c r)) = Just (Branch3 MTernaryProduct l c r)
 mergeToTernaryProduct tbl _ = Nothing
@@ -193,8 +194,29 @@ splitTernaryProductLeftAssoc tbl _ = Nothing
 splitTernaryProductRightAssoc tbl (Branch3 MTernaryProduct l c r) = Just (Branch2 MProduct l (Branch2 MProduct c r))
 splitTernaryProductRightAssoc tbl _ = Nothing
 
--- what do we hope to get from ternary mult?
--- we should be able to infer posdef-ness in more crazy situations
--- so if I write (A^T B A)^-1 x
+-- we can do (AB)^-1 = B^-1 A^-1 as long as A and B are both square
+distributeInverse tbl (Branch1 MInverse (Branch2 MProduct l r)) = 
+                  let Right (Matrix lr lc lprops) = treeMatrix l tbl
+                      Right (Matrix rr rc rprops) = treeMatrix r tbl in
+                  if (lr == lc) && (rr == rc)
+                  then Just (Branch2 MProduct (Branch1 MInverse r) (Branch1 MInverse l))
+                  else Nothing
+distributeInverse tbl _ = Nothing
 
--- current problem: zippers on ternary ops. we need to store the parent val, and the other two siblings
+factorInverse tbl (Branch2 MProduct (Branch1 MInverse r) (Branch1 MInverse l)) = Just (Branch1 MInverse (Branch2 MProduct l r))
+factorInverse tbl _ = Nothing
+
+cancelDoubleInverse tbl (Branch1 MInverse (Branch1 MInverse t)) = Just t
+cancelDoubleInverse tbl _ = Nothing 
+
+distributeTranspose tbl (Branch1 MTranspose (Branch2 MProduct l r)) = Just (Branch2 MProduct (Branch1 MTranspose r) (Branch1 MTranspose l))
+distributeTranspose tbl _ = Nothing
+
+factorTranspose tbl (Branch2 MProduct (Branch1 MTranspose r) (Branch1 MTranspose l)) = Just (Branch1 MTranspose (Branch2 MProduct l r))
+factorTranspose tbl _ = Nothing
+
+swapInverseTranspose tbl (Branch1 MInverse (Branch1 MTranspose t)) = Just (Branch1 MTranspose (Branch1 MInverse t))
+swapInverseTranspose tbl _ = Nothing 
+
+swapTransposeInverse tbl (Branch1 MTranspose (Branch1 MInverse t)) = Just (Branch1 MInverse (Branch1 MTranspose t))
+swapTransposeInverse tbl _ = Nothing 

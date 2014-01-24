@@ -1,0 +1,7 @@
+A: n x n
+B: n x n
+n ~ 100
+
+# might optimize to (AB)', except at the moment there's no 
+# cost specified for executing a transpose so it probably won't.
+A'B'
