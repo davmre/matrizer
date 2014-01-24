@@ -8,18 +8,24 @@ import Control.Monad.Error
 -- AST Definition
 -----------------------------------------------------------------------
 
-data MTree = Leaf Char | Branch1 UnOp MTree | Branch2 BinOp MTree MTree deriving (Eq, Ord)
-data BinOp = MProduct | MSum | MLinSolve deriving (Eq, Ord) 
+data MTree = Leaf Char | Branch1 UnOp MTree | Branch2 BinOp MTree MTree | Branch3 TernOp MTree MTree MTree deriving (Eq, Ord)
+data TernOp = MTernaryProduct deriving (Eq, Ord)
+data BinOp = MProduct | MSum | MLinSolve | MCholSolve deriving (Eq, Ord) 
 data UnOp = MInverse | MTranspose | MNegate deriving (Eq, Ord)
 
 
 
 
 -- AST pretty printing
+showTernOp :: TernOp -> String
+showTernOp MTernaryProduct = "***"
+instance Show TernOp where show = showTernOp
+
 showBinOp :: BinOp -> String
 showBinOp MProduct = "*"
 showBinOp MSum = "+"
 showBinOp MLinSolve = "\\"
+showBinOp MCholSolve = "cholSolve"
 instance Show BinOp where show = showBinOp
 
 showUnOp :: UnOp -> String
@@ -32,6 +38,7 @@ showTree :: MTree -> String
 showTree (Leaf a) = [a]
 showTree (Branch1 op c) = "(" ++ show op ++ " " ++ showTree c ++ ")"
 showTree (Branch2 op a b) = "(" ++ show op ++ " " ++ showTree a ++ " " ++ showTree b ++ ")"
+showTree (Branch3 op a b c) = "(" ++ show op ++ " " ++ showTree a ++ " " ++ showTree b ++ " " ++ showTree c ++ ")"
 instance Show MTree where show = showTree
 
 
@@ -78,6 +85,8 @@ instance Show MatrixSym where show = showMatrixSym
 
 -- Datatype for errors --
 data MError = SizeMismatch BinOp Matrix Matrix 
+            | SizeMismatchTern TernOp Matrix Matrix Matrix
+            | WrongProperties BinOp [MProperty] [MProperty] 
             | InvalidOp UnOp Matrix
             | UnboundName Char
             | Default String
@@ -86,6 +95,8 @@ data MError = SizeMismatch BinOp Matrix Matrix
 
 showError :: MError -> String
 showError (SizeMismatch op m1 m2) = "Invalid matrix dimensions for operation (" ++ showDim m1 ++ ") " ++ show op ++ " (" ++ showDim m2 ++ ")"
+showError (SizeMismatchTern op m1 m2 m3) = "Invalid matrix dimensions for ternary operator '" ++ show op ++ "' applied to matrices " ++ showDim m1 ++ ", " ++ showDim m2 ++ ", " ++ showDim m3 
+showError (WrongProperties op props1 props2) = "Operator '" ++ show op ++ "' cannot apply to matrices with properties " ++ show props1 ++ ", " ++ show props2 
 showError (InvalidOp op m) = "Invalid operation '" ++ show op ++ "' on matrix " ++ show m 
 showError (UnboundName c) = "Undefined matrix name " ++ show c
 showError (Default s) = "Default Error???" ++ show s

@@ -15,27 +15,34 @@ import Analysis
 --------------------------------------------------------------------------------------------------------
 -- Zipper definitions for the MTree structure (see http://learnyouahaskell.com/zippers) 
 
-data Crumb = LeftCrumb BinOp MTree | RightCrumb BinOp MTree | SingleCrumb UnOp deriving (Show)
+data Crumb = SingleCrumb UnOp | LeftCrumb BinOp MTree | RightCrumb BinOp MTree | TernCrumb TernOp [MTree] [MTree] deriving (Show)
 type Breadcrumbs = [Crumb]
 
 type MZipper = (MTree, Breadcrumbs)
 
 goLeft :: MZipper -> Maybe MZipper
 goLeft (Branch2 op l r, bs) = Just (l, LeftCrumb op r:bs)  
+goLeft (Branch3 op l c r, bs) = Just (l, TernCrumb op [] [c,r] : bs)  
 goLeft _ = Nothing
 
 goRight :: MZipper -> Maybe MZipper
 goRight (Branch2 op l r, bs) = Just (r, RightCrumb op l:bs)  
+goRight (Branch3 op l c r, bs) = Just (r, TernCrumb op [l,c] [] : bs)  
 goRight _ = Nothing
 
 goDown :: MZipper -> Maybe MZipper
 goDown (Branch1 op t, bs) = Just (t, SingleCrumb op : bs)
+goDown (Branch3 op l c r, bs) = Just (c, TernCrumb op [l] [r] : bs)
 goDown _ = Nothing
 
 goUp :: MZipper -> Maybe MZipper
+goUp (t, SingleCrumb op : bs) = Just (Branch1 op t, bs)
 goUp (t, LeftCrumb op r : bs) = Just (Branch2 op t r, bs)
 goUp (t, RightCrumb op l : bs) = Just (Branch2 op l t, bs)
-goUp (t, SingleCrumb op : bs) = Just (Branch1 op t, bs)
+goUp (t, TernCrumb op [] [c, r] : bs) = Just (Branch3 op t c r , bs)
+goUp (t, TernCrumb op [l] [r] : bs) = Just (Branch3 op l t r , bs)
+goUp (t, TernCrumb op [l,c] [] : bs) = Just (Branch3 op l c t , bs)
+
 goUp _ = Nothing
 
 topMost :: MZipper -> MZipper
@@ -64,7 +71,7 @@ zipperToTree (n, bs) = n
 --  (flops, trees) list to get the tree with the smallest FLOP count,
 --  and return that.
 optimize :: MTree -> SymbolTable -> ThrowsError (Int, MTree)
-optimize tree tbl = let (_, allTreesSet) = optimizeHelper [tree] (Set.singleton tree)
+optimize tree tbl = let (_, allTreesSet) = optimizeHelper tbl [tree] (Set.singleton tree)
                         allTreesList = Set.toList allTreesSet
                         sketchyFLOPsList = mapM (flip treeFLOPs tbl) allTreesList in
                     fmap (\ flopsList -> head $ sort $ zip flopsList allTreesList) sketchyFLOPsList
@@ -81,11 +88,11 @@ optimize tree tbl = let (_, allTreesSet) = optimizeHelper [tree] (Set.singleton 
 -- containing all of the newly generated expressions (the same ones
 -- that were added to the list)
 type TabuSet = Set.Set MTree
-optimizeHelper :: [MTree] -> TabuSet -> ([MTree], TabuSet)
-optimizeHelper [] exprSet = ([], exprSet)
-optimizeHelper (t:ts) exprSet = let generatedExprs = Set.fromList $ optimizerTraversal (t, [])
-                                    novelExprs = Set.difference generatedExprs exprSet in
-                                    optimizeHelper ( ts ++ (Set.toList novelExprs) ) (Set.union exprSet novelExprs)
+optimizeHelper :: SymbolTable -> [MTree] -> TabuSet -> ([MTree], TabuSet)
+optimizeHelper tbl [] exprSet = ([], exprSet)
+optimizeHelper tbl (t:ts) exprSet = let generatedExprs = Set.fromList $ optimizerTraversal tbl (t, [])
+                                        novelExprs = Set.difference generatedExprs exprSet in
+                                    optimizeHelper tbl ( ts ++ (Set.toList novelExprs) ) (Set.union exprSet novelExprs)
   
 -- Given a zipper corresponding to a position (node) in a tree, return
 -- the list of all new trees constructable by applying a single
@@ -93,18 +100,22 @@ optimizeHelper (t:ts) exprSet = let generatedExprs = Set.fromList $ optimizerTra
 -- any descendant node. Note: the transformed trees we return are
 -- rooted at the toplevel, i.e. they have been 'unzipped' by
 -- reconstructTree.
-optimizerTraversal :: MZipper -> [MTree]
-optimizerTraversal (Leaf c, bs) = []
-optimizerTraversal z@( n@(Branch2 op l r), bs) = (map (reconstructTree z) (optimizeAtNode n) ) ++  
-                                                 (maybe [] id (fmap optimizerTraversal (goLeft z) )) ++
-                                                 (maybe [] id (fmap optimizerTraversal (goRight z)))
-optimizerTraversal z@( n@(Branch1 op t), bs) = (map (reconstructTree z) (optimizeAtNode n) ) ++
-                                               (maybe [] id (fmap optimizerTraversal (goDown z)))
+optimizerTraversal :: SymbolTable -> MZipper -> [MTree]
+optimizerTraversal tbl (Leaf c, bs) = []
+optimizerTraversal tbl z@( n@(Branch3 op l c r), bs) = (map (reconstructTree z) (optimizeAtNode tbl n) ) ++  
+                                                       (maybe [] id (fmap (optimizerTraversal tbl) (goLeft z) )) ++
+                                                       (maybe [] id (fmap (optimizerTraversal tbl) (goDown z) )) ++
+                                                       (maybe [] id (fmap (optimizerTraversal tbl) (goRight z)))
+optimizerTraversal tbl z@( n@(Branch2 op l r), bs) = (map (reconstructTree z) (optimizeAtNode tbl n) ) ++  
+                                                     (maybe [] id (fmap (optimizerTraversal tbl) (goLeft z) )) ++
+                                                     (maybe [] id (fmap (optimizerTraversal tbl) (goRight z)))
+optimizerTraversal tbl z@( n@(Branch1 op t), bs) = (map (reconstructTree z) (optimizeAtNode tbl n) ) ++
+                                                   (maybe [] id (fmap (optimizerTraversal tbl) (goDown z)))
 
 -- Given a tree node, return a list of all transformed nodes that can
 -- be generated by applying optimization rules at that node.
-optimizeAtNode :: MTree -> [MTree]
-optimizeAtNode t = mapMaybeFunc t optimizationRules
+optimizeAtNode :: SymbolTable -> MTree -> [MTree]
+optimizeAtNode tbl t = mapMaybeFunc t [f tbl | f <- optimizationRules]
 
 -- Take a zipper representing a subtree, and a new subtree to replace that subtree. 
 -- return a full (rooted) tree with the new subtree in the appropriate place. 
@@ -123,10 +134,10 @@ mapMaybeFunc x (f:fs) =
 ------------------------------------------------------------------
 -- List of optimizations
 --
--- An optimization is a function MTree -> Maybe MTree. The input is
--- assumed to be a subexpression. If the optimization can apply to
--- that subexpression, it returns the transformed
--- subexpression. Otherwise it returns Nothing.
+-- An optimization is a function SymbolTable -> MTree -> Maybe
+-- MTree. The input tree is assumed to be a subexpression. If the
+-- optimization can apply to that subexpression, it returns the
+-- transformed subexpression. Otherwise it returns Nothing.
 --
 -- Note that an optimization does not always need to be helpful:
 -- optimizations which increase the number of required FLOPs will be
@@ -145,29 +156,45 @@ mapMaybeFunc x (f:fs) =
 -- generate all possible transformed versions of a subtree.
 
 binopSumRules = [commonFactorLeft, commonFactorRight]
-binopProductRules = [assocMult, invToLinsolve]
-optimizationRules = binopSumRules ++ binopProductRules
+binopProductRules = [assocMult, invToLinsolve, mergeToTernaryProduct]
+ternProductRules = [splitTernaryProductLeftAssoc, splitTernaryProductRightAssoc]
+optimizationRules = binopSumRules ++ binopProductRules ++ ternProductRules
 
-assocMult :: MTree -> Maybe MTree
-assocMult (Branch2 MProduct (Branch2 MProduct l c) r) = Just (Branch2 MProduct l (Branch2 MProduct c r))
-assocMult (Branch2 MProduct l (Branch2 MProduct c r)) = Just (Branch2 MProduct (Branch2 MProduct l c) r)
-assocMult _ = Nothing
+assocMult tbl (Branch2 MProduct (Branch2 MProduct l c) r) = Just (Branch2 MProduct l (Branch2 MProduct c r))
+assocMult tbl (Branch2 MProduct l (Branch2 MProduct c r)) = Just (Branch2 MProduct (Branch2 MProduct l c) r)
+assocMult tbl _ = Nothing
 
-commonFactorRight :: MTree -> Maybe MTree
-commonFactorRight (Branch2 MSum (Branch2 MProduct l1 l2) (Branch2 MProduct r1 r2)) = 
+commonFactorRight tbl (Branch2 MSum (Branch2 MProduct l1 l2) (Branch2 MProduct r1 r2)) = 
   if (l2 == r2) 
      then Just (Branch2 MProduct (Branch2 MSum l1 r1) l2)
      else Nothing
-commonFactorRight _ = Nothing
+commonFactorRight tbl _ = Nothing
 
-commonFactorLeft :: MTree -> Maybe MTree
-commonFactorLeft (Branch2 MSum (Branch2 MProduct l1 l2) (Branch2 MProduct r1 r2)) = 
+commonFactorLeft tbl (Branch2 MSum (Branch2 MProduct l1 l2) (Branch2 MProduct r1 r2)) = 
   if (l1 == r1) 
      then Just (Branch2 MProduct l1 (Branch2 MSum l2 r2))
      else Nothing
-commonFactorLeft _ = Nothing
+commonFactorLeft tbl _ = Nothing
 
-invToLinsolve :: MTree -> Maybe MTree
-invToLinsolve (Branch2 MProduct (Branch1 MInverse l) r) = Just (Branch2 MLinSolve l r)
-invToLinsolve _ = Nothing
+invToLinsolve tbl (Branch2 MProduct (Branch1 MInverse l) r) = let Right (Matrix nr nc props) = treeMatrix l tbl in
+                                                              if PosDef `elem` props
+                                                              then Just (Branch2 MCholSolve l r)
+                                                              else Just (Branch2 MLinSolve l r)
+invToLinsolve tbl _ = Nothing               
 
+
+mergeToTernaryProduct tbl (Branch2 MProduct (Branch2 MProduct l c) r) = Just (Branch3 MTernaryProduct l c r)
+mergeToTernaryProduct tbl (Branch2 MProduct l (Branch2 MProduct c r)) = Just (Branch3 MTernaryProduct l c r)
+mergeToTernaryProduct tbl _ = Nothing
+
+splitTernaryProductLeftAssoc tbl (Branch3 MTernaryProduct l c r) = Just (Branch2 MProduct (Branch2 MProduct l c) r)
+splitTernaryProductLeftAssoc tbl _ = Nothing
+
+splitTernaryProductRightAssoc tbl (Branch3 MTernaryProduct l c r) = Just (Branch2 MProduct l (Branch2 MProduct c r))
+splitTernaryProductRightAssoc tbl _ = Nothing
+
+-- what do we hope to get from ternary mult?
+-- we should be able to infer posdef-ness in more crazy situations
+-- so if I write (A^T B A)^-1 x
+
+-- current problem: zippers on ternary ops. we need to store the parent val, and the other two siblings

@@ -1,0 +1,7 @@
+A: n x n
+B: n x n posdef
+x: n x 1
+n ~ 100
+
+# should optimize to A'BA `cholSolve` x
+(A'BA)^-1x

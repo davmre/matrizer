@@ -8,8 +8,13 @@ import MTypes
 
 generateNumpy :: MTree -> String
 generateNumpy (Leaf a) = [a]
+generateNumpy (Branch3 MTernaryProduct t1 t2 t3) = "np.dot(np.dot(" ++ (generateNumpy t1) ++ 
+                                                   ", " ++ (generateNumpy t2)  ++ "), " ++ 
+                                                   (generateNumpy t3) ++ ")"
 generateNumpy (Branch2 MLinSolve t1 t2) = "np.linalg.solve(" ++ (generateNumpy t1) ++ 
                                           ", " ++ (generateNumpy t2)  ++ ")" 
+generateNumpy (Branch2 MCholSolve t1 t2) = "scipy.linalg.cho_solve(scipy.linalg.cho_factor(" ++ (generateNumpy t1) ++ 
+                                          "), " ++ (generateNumpy t2)  ++ ")" 
 generateNumpy (Branch2 MProduct t1 t2) = "np.dot(" ++ (generateNumpy t1) ++ 
                                           ", " ++ (generateNumpy t2)  ++ ")" 
 generateNumpy (Branch2 MSum t1 t2) = (generateNumpy t1) ++ " + " ++ (generateNumpy t2)
