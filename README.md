@@ -1,8 +1,8 @@
 matrizer
 ========
 
-Optimizing compiler for matrix expressions, targeting numpy / MATLAB.
+To build, run:
 
-To build: runhaskell Setup.hs build
+ghc --make Matrizer
 
 Try an example: dist/build/matrizer/matrizer examples/normaleqns.mtr
