@@ -4,6 +4,10 @@ cabal-dev
 *.hi
 *.chi
 *.chs.h
-.virthualenv
+.virtualenv
 *~
 Matrizer
+
+.cabal-sandbox/
+cabal.sandbox.config
+cabal.config
