@@ -8,38 +8,47 @@ import Control.Monad.Error
 -- AST Definition
 -----------------------------------------------------------------------
 
-data MTree = Leaf Char | Branch1 UnOp MTree | Branch2 BinOp MTree MTree | Branch3 TernOp MTree MTree MTree deriving (Eq, Ord)
+data MTree = Leaf Char
+           | Branch1 UnOp MTree
+           | Branch2 BinOp MTree MTree
+           | Branch3 TernOp MTree MTree MTree
+           deriving (Eq, Ord)
 data TernOp = MTernaryProduct deriving (Eq, Ord)
-data BinOp = MProduct | MSum | MLinSolve | MCholSolve deriving (Eq, Ord) 
-data UnOp = MInverse | MTranspose | MNegate deriving (Eq, Ord)
-
+data BinOp = MProduct
+           | MSum
+           | MLinSolve
+           | MCholSolve
+           deriving (Eq, Ord, Enum)
+data UnOp = MInverse
+          | MTranspose
+          | MNegate
+          deriving (Eq, Ord, Enum)
 
 
 
 -- AST pretty printing
-showTernOp :: TernOp -> String
-showTernOp MTernaryProduct = "***"
-instance Show TernOp where show = showTernOp
 
-showBinOp :: BinOp -> String
-showBinOp MProduct = "*"
-showBinOp MSum = "+"
-showBinOp MLinSolve = "\\"
-showBinOp MCholSolve = "cholSolve"
-instance Show BinOp where show = showBinOp
+instance Show TernOp where
+    show _ = "***"
 
-showUnOp :: UnOp -> String
-showUnOp MInverse = "inv"
-showUnOp MTranspose = "transpose"
-showUnOp MNegate = "neg"
-instance Show UnOp where show = showUnOp
+instance Show BinOp where
+    show MProduct = "*"
+    show MSum = "+"
+    show MLinSolve = "\\"
+    show MCholSolve = "cholSolve"
 
-showTree :: MTree -> String
-showTree (Leaf a) = [a]
-showTree (Branch1 op c) = "(" ++ show op ++ " " ++ showTree c ++ ")"
-showTree (Branch2 op a b) = "(" ++ show op ++ " " ++ showTree a ++ " " ++ showTree b ++ ")"
-showTree (Branch3 op a b c) = "(" ++ show op ++ " " ++ showTree a ++ " " ++ showTree b ++ " " ++ showTree c ++ ")"
-instance Show MTree where show = showTree
+instance Show UnOp where
+    show MInverse = "inv"
+    show MTranspose = "transpose"
+    show MNegate = "neg"
+
+instance Show MTree where
+    show (Leaf a) = [a]
+    show (Branch1 op c) = "(" ++ show op ++ " " ++ show c ++ ")"
+    show (Branch2 op a b) = "(" ++ show op ++ " " ++ show a ++ " "
+         ++ show b ++ ")"
+    show (Branch3 op a b c) = "(" ++ show op ++ " " ++ show a ++ " "
+         ++ show b ++ " " ++ show c ++ ")"
 
 
 ------------------------------------------------------------------------
@@ -50,10 +59,16 @@ type SymbolTable = Map.Map Char Matrix
 type SizeTable = Map.Map Char Int
 
 data MatrixSym = MatrixSym String String [MProperty]
-data Matrix = Matrix Int Int [MProperty] 
-data MProperty = Symmetric | PosDef | Diagonal deriving Eq
-data PreambleLine = MatrixLine Char MatrixSym | SymbolLine Char Int | BlankLine  deriving (Show)
-                                                                                          
+data Matrix = Matrix Int Int [MProperty]
+data MProperty = Symmetric
+               | PosDef
+               | Diagonal
+               deriving (Eq, Enum)
+data PreambleLine = MatrixLine Char MatrixSym
+                  | SymbolLine Char Int
+                  | BlankLine
+                  deriving (Show)
+
 --------------------------------------------
 -- Arjun comment:
 -- The parser reads in the symbol table, where each line is a
@@ -64,44 +79,55 @@ data PreambleLine = MatrixLine Char MatrixSym | SymbolLine Char Int | BlankLine 
 -- constructor is of the "LitSize" type and not the "VarSize" type...?
 --------------------------------------------
 
-showMProperty :: MProperty -> String
-showMProperty Symmetric = "symmetric"
-showMProperty PosDef = "posdef"
-showMProperty Diagonal = "diag"
-instance Show MProperty where show = showMProperty
+instance Show MProperty where
+    show Symmetric = "symmetric"
+    show PosDef = "posdef"
+    show Diagonal = "diag"
 
-showMatrix (Matrix rows cols props) = (show rows) ++ "x" ++ (show cols) ++ " " ++ (show props)
-instance Show Matrix where show = showMatrix
+instance Show Matrix where
+    show (Matrix r c props) = show r ++ "x" ++ show c ++ " " ++ show props
 
 showDim :: Matrix -> String
-showDim (Matrix r c props) =  (show r) ++ "x" ++ (show c)
+showDim (Matrix r c _) =  (show r) ++ "x" ++ (show c)
 
-showMatrixSym (MatrixSym rows cols props) = (show rows) ++ "x" ++ (show cols) ++ " " ++ (show props)
-instance Show MatrixSym where show = showMatrixSym
+instance Show MatrixSym where
+    show (MatrixSym r c props) = show r ++ "x" ++ show c ++ " "
+                                 ++ show props
+
 
 
 ---------------------------------------------------------------------------------------------------
 -- Error definitions
 
 -- Datatype for errors --
-data MError = SizeMismatch BinOp Matrix Matrix 
+data MError = SizeMismatch BinOp Matrix Matrix
             | SizeMismatchTern TernOp Matrix Matrix Matrix
-            | WrongProperties BinOp [MProperty] [MProperty] 
+            | WrongProperties BinOp [MProperty] [MProperty]
             | InvalidOp UnOp Matrix
             | UnboundName Char
             | Default String
             | BadDimension String
             | Parser ParseError
+            | NotImplemented String
 
 showError :: MError -> String
-showError (SizeMismatch op m1 m2) = "Invalid matrix dimensions for operation (" ++ showDim m1 ++ ") " ++ show op ++ " (" ++ showDim m2 ++ ")"
-showError (SizeMismatchTern op m1 m2 m3) = "Invalid matrix dimensions for ternary operator '" ++ show op ++ "' applied to matrices " ++ showDim m1 ++ ", " ++ showDim m2 ++ ", " ++ showDim m3 
-showError (WrongProperties op props1 props2) = "Operator '" ++ show op ++ "' cannot apply to matrices with properties " ++ show props1 ++ ", " ++ show props2 
-showError (InvalidOp op m) = "Invalid operation '" ++ show op ++ "' on matrix " ++ show m 
-showError (UnboundName c) = "Undefined matrix name " ++ show c
-showError (Default s) = "Default Error???" ++ show s
+showError (SizeMismatch op m1 m2) =
+        "Invalid matrix dimensions for operation ("
+        ++ showDim m1 ++ ") " ++ show op ++ " (" ++ showDim m2 ++ ")"
+showError (SizeMismatchTern op m1 m2 m3) =
+        "Invalid matrix dimensions for ternary operator '"
+        ++ show op ++ "' applied to matrices " ++ showDim m1 ++ ", "
+        ++ showDim m2 ++ ", " ++ showDim m3
+showError (WrongProperties op props1 props2) =
+        "Operator '" ++ show op
+        ++ "' cannot apply to matrices with properties " ++ show props1
+        ++ ", " ++ show props2
+showError (InvalidOp op m) =
+        "Invalid operation '" ++ show op ++ "' on matrix " ++ show m
+showError (UnboundName c)  = "Undefined matrix name " ++ show c
+showError (Default s)      = "Default Error???" ++ show s
 showError (BadDimension d) = "Invalid dimension specification'" ++ show d ++ "'"
-showError (Parser err) = "Parse error at " ++ show err
+showError (Parser err)     = "Parse error at " ++ show err
 
 instance Show MError where show = showError
 
@@ -111,9 +137,11 @@ instance Error MError where
 
 type ThrowsError = Either MError
 
+trapError :: (Show a, MonadError a m) => m String -> m String
 trapError action = catchError action (return . show)
 
 extractValue :: ThrowsError a -> a
 extractValue (Right val) = val
+extractValue (Left err)  = error $ show err
 
 ---------------------------------------------------------------------------
