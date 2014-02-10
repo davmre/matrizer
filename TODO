@@ -1,0 +1,15 @@
+- Special-case the identity matrix
+- Assignment operator to allow temporary variables (and corresponding optimization of common subexpressions)
+- Scalars
+- Sparse matrices
+- Blocked or block-diagonal matrices
+- Woodbury matrix inversion lemma
+- Optimizations for the optimizer:
+  	- Bounded-depth search to allow for cyclic rewrite rules
+	- Heuristics for guiding search
+- Other matrix operations (with appropriate optimizer rewrite rules):
+  	- decompositions: eigenvalue, SVD, QR
+	- determinant and trace
+	- diag() operator
+	- matrix derivatives
+	- Kronecker and Hadamard (pointwise) products
