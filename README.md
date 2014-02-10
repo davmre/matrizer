@@ -19,7 +19,11 @@ This should output:
      Optimized tree: (cholSolve (* (transpose X) X) (* (transpose X) y))
      Optimized code: scipy.linalg.cho_solve(scipy.linalg.cho_factor(np.dot(X.T, X)), np.dot(X.T, y))
 
-There is currently no documentation, but the examples provide a reasonable guide to what's possible.
+There is currently no documentation, but the examples provide a
+reasonable guide to what's possible.  Currently we support basic
+matrix operations (addition, multiplication, inverse, transpose,
+negation, solving linear systems using LU or Cholesky decompositions),
+matrix properties (diagonal, symmetric, positive definite), and many
+of the obvious algebraic rewrite rules.
 
-
-
+See the file TODO for features we hope to implement.

@@ -1,5 +1,6 @@
 - Special-case the identity matrix
-- Assignment operator to allow temporary variables (and corresponding optimization of common subexpressions)
+- Assignment operator to allow temporary variables (and corresponding
+  optimization of common subexpressions)
 - Scalars
 - Sparse matrices
 - Blocked or block-diagonal matrices
@@ -7,9 +8,21 @@
 - Optimizations for the optimizer:
   	- Bounded-depth search to allow for cyclic rewrite rules
 	- Heuristics for guiding search
+	- Optimizer should 'show its work' and return a list of
+          rewrite rules applied
 - Other matrix operations (with appropriate optimizer rewrite rules):
   	- decompositions: eigenvalue, SVD, QR
 	- determinant and trace
 	- diag() operator
 	- matrix derivatives
 	- Kronecker and Hadamard (pointwise) products
+- Other matrix properties:
+  	- unitary
+  	- stochastic
+	- rotation matrices (always commute with each other)
+	- real/complex
+	- singular / invertible
+- Explicit consideration of numeric stability (currently we just
+  assume that fewer FLOPs is better). Give each matrix a condition
+  number, then calculate stability of the resulting expression. 
+- Web interface for easy public use
