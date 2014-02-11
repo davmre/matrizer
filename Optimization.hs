@@ -5,29 +5,29 @@ import qualified Data.Set as Set
 
 import Data.List
 
-import Control.Monad
-import Control.Monad.Error
-import System.Environment
-
 import MTypes
 import Analysis
 
 --------------------------------------------------------------------------------------------------------
--- Zipper definitions for the MTree structure (see http://learnyouahaskell.com/zippers) 
+-- Zipper definitions for the MTree structure (see http://learnyouahaskell.com/zippers)
 
-data Crumb = SingleCrumb UnOp | LeftCrumb BinOp MTree | RightCrumb BinOp MTree | TernCrumb TernOp [MTree] [MTree] deriving (Show)
+data Crumb = SingleCrumb UnOp
+           | LeftCrumb BinOp MTree
+           | RightCrumb BinOp MTree
+           | TernCrumb TernOp [MTree] [MTree]
+           deriving (Show, Eq)
 type Breadcrumbs = [Crumb]
 
 type MZipper = (MTree, Breadcrumbs)
 
 goLeft :: MZipper -> Maybe MZipper
-goLeft (Branch2 op l r, bs) = Just (l, LeftCrumb op r:bs)  
-goLeft (Branch3 op l c r, bs) = Just (l, TernCrumb op [] [c,r] : bs)  
+goLeft (Branch2 op l r, bs) = Just (l, LeftCrumb op r:bs)
+goLeft (Branch3 op l c r, bs) = Just (l, TernCrumb op [] [c,r] : bs)
 goLeft _ = Nothing
 
 goRight :: MZipper -> Maybe MZipper
-goRight (Branch2 op l r, bs) = Just (r, RightCrumb op l:bs)  
-goRight (Branch3 op l c r, bs) = Just (r, TernCrumb op [l,c] [] : bs)  
+goRight (Branch2 op l r, bs) = Just (r, RightCrumb op l:bs)
+goRight (Branch3 op l c r, bs) = Just (r, TernCrumb op [l,c] [] : bs)
 goRight _ = Nothing
 
 goDown :: MZipper -> Maybe MZipper
@@ -46,16 +46,16 @@ goUp (t, TernCrumb op [l,c] [] : bs) = Just (Branch3 op l c t , bs)
 goUp _ = Nothing
 
 topMost :: MZipper -> MZipper
-topMost (t,[]) = (t,[])  
-topMost z = topMost $ maybe z id (goUp z)  
+topMost (t,[]) = (t,[])
+topMost z = topMost $ maybe z id (goUp z)
 
-modify :: (MTree -> Maybe MTree) -> MZipper -> MZipper  
+modify :: (MTree -> Maybe MTree) -> MZipper -> MZipper
 modify f (t, bs) = case (f t) of
   Just a -> (a, bs)
   Nothing -> (t, bs)
 
 zipperToTree :: MZipper -> MTree
-zipperToTree (n, bs) = n
+zipperToTree (n, _) = n
 
 -----------------------------------------------------------------
 -- Main optimizer logic
@@ -89,11 +89,11 @@ optimize tree tbl = let (_, allTreesSet) = optimizeHelper tbl [tree] (Set.single
 -- that were added to the list)
 type TabuSet = Set.Set MTree
 optimizeHelper :: SymbolTable -> [MTree] -> TabuSet -> ([MTree], TabuSet)
-optimizeHelper tbl [] exprSet = ([], exprSet)
+optimizeHelper _ [] exprSet = ([], exprSet)
 optimizeHelper tbl (t:ts) exprSet = let generatedExprs = Set.fromList $ optimizerTraversal tbl (t, [])
                                         novelExprs = Set.difference generatedExprs exprSet in
                                     optimizeHelper tbl ( ts ++ (Set.toList novelExprs) ) (Set.union exprSet novelExprs)
-  
+
 -- Given a zipper corresponding to a position (node) in a tree, return
 -- the list of all new trees constructable by applying a single
 -- optimization rule either at the current node, or (recursively) at
@@ -101,32 +101,35 @@ optimizeHelper tbl (t:ts) exprSet = let generatedExprs = Set.fromList $ optimize
 -- rooted at the toplevel, i.e. they have been 'unzipped' by
 -- reconstructTree.
 optimizerTraversal :: SymbolTable -> MZipper -> [MTree]
-optimizerTraversal tbl (Leaf c, bs) = []
-optimizerTraversal tbl z@( n@(Branch3 op l c r), bs) = (map (reconstructTree z) (optimizeAtNode tbl n) ) ++  
-                                                       (maybe [] id (fmap (optimizerTraversal tbl) (goLeft z) )) ++
-                                                       (maybe [] id (fmap (optimizerTraversal tbl) (goDown z) )) ++
-                                                       (maybe [] id (fmap (optimizerTraversal tbl) (goRight z)))
-optimizerTraversal tbl z@( n@(Branch2 op l r), bs) = (map (reconstructTree z) (optimizeAtNode tbl n) ) ++  
-                                                     (maybe [] id (fmap (optimizerTraversal tbl) (goLeft z) )) ++
-                                                     (maybe [] id (fmap (optimizerTraversal tbl) (goRight z)))
-optimizerTraversal tbl z@( n@(Branch1 op t), bs) = (map (reconstructTree z) (optimizeAtNode tbl n) ) ++
-                                                   (maybe [] id (fmap (optimizerTraversal tbl) (goDown z)))
+optimizerTraversal _ (Leaf _, _) = []
+optimizerTraversal tbl z@( n@(Branch3 _ _ _ _), _) =
+        (map (reconstructTree z) (optimizeAtNode tbl n) ) ++
+        (maybe [] id (fmap (optimizerTraversal tbl) (goLeft z) )) ++
+        (maybe [] id (fmap (optimizerTraversal tbl) (goDown z) )) ++
+        (maybe [] id (fmap (optimizerTraversal tbl) (goRight z)))
+optimizerTraversal tbl z@( n@(Branch2 _ _ _), _) =
+        (map (reconstructTree z) (optimizeAtNode tbl n) ) ++
+        (maybe [] id (fmap (optimizerTraversal tbl) (goLeft z) )) ++
+        (maybe [] id (fmap (optimizerTraversal tbl) (goRight z)))
+optimizerTraversal tbl z@( n@(Branch1 _ _), _) =
+        (map (reconstructTree z) (optimizeAtNode tbl n) ) ++
+        (maybe [] id (fmap (optimizerTraversal tbl) (goDown z)))
 
 -- Given a tree node, return a list of all transformed nodes that can
 -- be generated by applying optimization rules at that node.
 optimizeAtNode :: SymbolTable -> MTree -> [MTree]
 optimizeAtNode tbl t = mapMaybeFunc t [f tbl | f <- optimizationRules]
 
--- Take a zipper representing a subtree, and a new subtree to replace that subtree. 
--- return a full (rooted) tree with the new subtree in the appropriate place. 
+-- Take a zipper representing a subtree, and a new subtree to replace that subtree.
+-- return a full (rooted) tree with the new subtree in the appropriate place.
 reconstructTree :: MZipper -> MTree -> MTree
-reconstructTree (t1, bs) t2 = zipperToTree $ topMost (t2, bs)
+reconstructTree (_, bs) t2 = zipperToTree $ topMost (t2, bs)
 
 -- Utility function used by optimizeAtNode: map a function f over a
 -- list, silently discarding any element for which f returns Nothing.
 mapMaybeFunc :: a -> [(a -> Maybe b)] -> [b]
 mapMaybeFunc _ []     = []
-mapMaybeFunc x (f:fs) = 
+mapMaybeFunc x (f:fs) =
   case f x of
     Just y  -> y : mapMaybeFunc x fs
     Nothing -> mapMaybeFunc x fs
@@ -142,7 +145,7 @@ mapMaybeFunc x (f:fs) =
 -- Note that an optimization does not always need to be helpful:
 -- optimizations which increase the number of required FLOPs will be
 -- selected against, but are perfectly legal (and sometimes necessary
--- as intermediate steps). 
+-- as intermediate steps).
 --
 -- The major current restriction on optimizations is that they should
 -- generate at most a finite group of results: thus 'right-multiply by
@@ -155,68 +158,129 @@ mapMaybeFunc x (f:fs) =
 -- optimizationRules. This list is consulted by optimizeNode to
 -- generate all possible transformed versions of a subtree.
 
-binopSumRules = [commonFactorLeft, commonFactorRight]
-binopProductRules = [assocMult, invToLinsolve, mergeToTernaryProduct, factorInverse, factorTranspose]
-ternProductRules = [splitTernaryProductLeftAssoc, splitTernaryProductRightAssoc]
-inverseRules = [distributeInverse, swapInverseTranspose, cancelDoubleInverse]
-transposeRules = [distributeTranspose, swapTransposeInverse]
-optimizationRules = inverseRules ++ transposeRules ++ binopSumRules ++ binopProductRules ++ ternProductRules
+-- TODO: Keeping everything in list is kind of ugly. Probably switch to
+-- records.
+-- TODO: If we switch to records, probably roll out a lens so that the
+-- structure keeps (MTree -> Maybe MTree) but gives back (a -> MTree ->
+-- Maybe MTree) (i.e. const) for e.g. binopSumRules. Then remove the
+-- extra arguments that are cluttering everything.
 
-assocMult tbl (Branch2 MProduct (Branch2 MProduct l c) r) = Just (Branch2 MProduct l (Branch2 MProduct c r))
-assocMult tbl (Branch2 MProduct l (Branch2 MProduct c r)) = Just (Branch2 MProduct (Branch2 MProduct l c) r)
-assocMult tbl _ = Nothing
+type Rule  =  Map.Map Char Matrix -> MTree -> Maybe MTree
+type Rules = [Rule]
 
-commonFactorRight tbl (Branch2 MSum (Branch2 MProduct l1 l2) (Branch2 MProduct r1 r2)) = 
-  if (l2 == r2) 
+binopSumRules :: Rules
+binopSumRules = [commonFactorLeft
+                , commonFactorRight
+                ]
+
+binopProductRules :: Rules
+binopProductRules = [assocMult
+                    , invToLinsolve
+                    , mergeToTernaryProduct
+                    , factorInverse
+                    , factorTranspose
+                    ]
+
+ternProductRules :: Rules
+ternProductRules = [splitTernaryProductLeftAssoc
+                   , splitTernaryProductRightAssoc
+                   ]
+
+inverseRules :: Rules
+inverseRules = [distributeInverse
+               , swapInverseTranspose
+               , cancelDoubleInverse
+               ]
+
+transposeRules :: Rules
+transposeRules = [distributeTranspose
+                 , swapTransposeInverse
+                 ]
+
+optimizationRules :: Rules
+optimizationRules = inverseRules ++ transposeRules ++ binopSumRules ++
+    binopProductRules ++ ternProductRules
+
+assocMult :: Rule
+assocMult _ (Branch2 MProduct (Branch2 MProduct l c) r) = Just (Branch2 MProduct l (Branch2 MProduct c r))
+assocMult _ (Branch2 MProduct l (Branch2 MProduct c r)) = Just (Branch2 MProduct (Branch2 MProduct l c) r)
+assocMult _ _ = Nothing
+
+commonFactorRight :: Rule
+commonFactorRight _ (Branch2 MSum (Branch2 MProduct l1 l2) (Branch2 MProduct r1 r2)) =
+  if (l2 == r2)
      then Just (Branch2 MProduct (Branch2 MSum l1 r1) l2)
      else Nothing
-commonFactorRight tbl _ = Nothing
+commonFactorRight _ _ = Nothing
 
-commonFactorLeft tbl (Branch2 MSum (Branch2 MProduct l1 l2) (Branch2 MProduct r1 r2)) = 
-  if (l1 == r1) 
+commonFactorLeft :: Rule
+commonFactorLeft _ (Branch2 MSum (Branch2 MProduct l1 l2) (Branch2 MProduct r1 r2)) =
+  if (l1 == r1)
      then Just (Branch2 MProduct l1 (Branch2 MSum l2 r2))
      else Nothing
-commonFactorLeft tbl _ = Nothing
+commonFactorLeft _ _ = Nothing
 
-invToLinsolve tbl (Branch2 MProduct (Branch1 MInverse l) r) = let Right (Matrix nr nc props) = treeMatrix l tbl in
-                                                              if PosDef `elem` props
-                                                              then Just (Branch2 MCholSolve l r)
-                                                              else Just (Branch2 MLinSolve l r)
-invToLinsolve tbl _ = Nothing               
+invToLinsolve :: Rule
+invToLinsolve tbl (Branch2 MProduct (Branch1 MInverse l) r) =
+        let Right (Matrix _ _ props) = treeMatrix l tbl in
+            if PosDef `elem` props
+                then Just (Branch2 MCholSolve l r)
+                else Just (Branch2 MLinSolve l r)
+invToLinsolve _ _ = Nothing
 
-mergeToTernaryProduct tbl (Branch2 MProduct (Branch2 MProduct l c) r) = Just (Branch3 MTernaryProduct l c r)
-mergeToTernaryProduct tbl (Branch2 MProduct l (Branch2 MProduct c r)) = Just (Branch3 MTernaryProduct l c r)
-mergeToTernaryProduct tbl _ = Nothing
+mergeToTernaryProduct :: Rule
+mergeToTernaryProduct _ (Branch2 MProduct (Branch2 MProduct l c) r) =
+        Just (Branch3 MTernaryProduct l c r)
+mergeToTernaryProduct _ (Branch2 MProduct l (Branch2 MProduct c r)) =
+        Just (Branch3 MTernaryProduct l c r)
+mergeToTernaryProduct _ _ = Nothing
 
-splitTernaryProductLeftAssoc tbl (Branch3 MTernaryProduct l c r) = Just (Branch2 MProduct (Branch2 MProduct l c) r)
-splitTernaryProductLeftAssoc tbl _ = Nothing
+splitTernaryProductLeftAssoc :: Rule
+splitTernaryProductLeftAssoc _ (Branch3 MTernaryProduct l c r) =
+        Just (Branch2 MProduct (Branch2 MProduct l c) r)
+splitTernaryProductLeftAssoc _ _ = Nothing
 
-splitTernaryProductRightAssoc tbl (Branch3 MTernaryProduct l c r) = Just (Branch2 MProduct l (Branch2 MProduct c r))
-splitTernaryProductRightAssoc tbl _ = Nothing
+splitTernaryProductRightAssoc :: Rule
+splitTernaryProductRightAssoc _ (Branch3 MTernaryProduct l c r) =
+        Just (Branch2 MProduct l (Branch2 MProduct c r))
+splitTernaryProductRightAssoc _ _ = Nothing
 
 -- we can do (AB)^-1 = B^-1 A^-1 as long as A and B are both square
-distributeInverse tbl (Branch1 MInverse (Branch2 MProduct l r)) = 
-                  let Right (Matrix lr lc lprops) = treeMatrix l tbl
-                      Right (Matrix rr rc rprops) = treeMatrix r tbl in
+distributeInverse :: Rule
+distributeInverse tbl (Branch1 MInverse (Branch2 MProduct l r)) =
+                  let Right (Matrix lr lc _) = treeMatrix l tbl
+                      Right (Matrix rr rc _) = treeMatrix r tbl in
                   if (lr == lc) && (rr == rc)
-                  then Just (Branch2 MProduct (Branch1 MInverse r) (Branch1 MInverse l))
+                  then Just (Branch2 MProduct (Branch1 MInverse r)
+                                              (Branch1 MInverse l))
                   else Nothing
-distributeInverse tbl _ = Nothing
+distributeInverse _ _ = Nothing
 
-factorInverse tbl (Branch2 MProduct (Branch1 MInverse r) (Branch1 MInverse l)) = Just (Branch1 MInverse (Branch2 MProduct l r))
-factorInverse tbl _ = Nothing
+factorInverse :: Rule
+factorInverse _ (Branch2 MProduct (Branch1 MInverse r) (Branch1 MInverse l)) =
+        Just (Branch1 MInverse (Branch2 MProduct l r))
+factorInverse _ _ = Nothing
 
-cancelDoubleInverse tbl (Branch1 MInverse (Branch1 MInverse t)) = Just t
-cancelDoubleInverse tbl _ = Nothing 
+cancelDoubleInverse ::Rule
+cancelDoubleInverse _ (Branch1 MInverse (Branch1 MInverse t)) = Just t
+cancelDoubleInverse _ _ = Nothing
 
-distributeTranspose tbl (Branch1 MTranspose (Branch2 MProduct l r)) = Just (Branch2 MProduct (Branch1 MTranspose r) (Branch1 MTranspose l))
-distributeTranspose tbl _ = Nothing
+distributeTranspose :: Rule
+distributeTranspose _ (Branch1 MTranspose (Branch2 MProduct l r)) =
+        Just (Branch2 MProduct (Branch1 MTranspose r) (Branch1 MTranspose l))
+distributeTranspose _ _ = Nothing
 
-factorTranspose tbl (Branch2 MProduct (Branch1 MTranspose r) (Branch1 MTranspose l)) = Just (Branch1 MTranspose (Branch2 MProduct l r))
-factorTranspose tbl _ = Nothing
+factorTranspose :: Rule
+factorTranspose _ (Branch2 MProduct (Branch1 MTranspose r) (Branch1 MTranspose l)) =
+        Just (Branch1 MTranspose (Branch2 MProduct l r))
+factorTranspose _ _ = Nothing
 
-swapInverseTranspose tbl (Branch1 MInverse (Branch1 MTranspose t)) = Just (Branch1 MTranspose (Branch1 MInverse t))
-swapInverseTranspose tbl _ = Nothing 
+swapInverseTranspose :: Rule
+swapInverseTranspose _ (Branch1 MInverse (Branch1 MTranspose t)) =
+        Just (Branch1 MTranspose (Branch1 MInverse t))
+swapInverseTranspose _ _ = Nothing
 
-swapTransposeInverse tbl (Branch1 MTranspose (Branch1 MInverse t)) = Just (Branch1 MInverse (Branch1 MTranspose t))
-swapTransposeInverse tbl _ = Nothing 
+swapTransposeInverse :: Rule
+swapTransposeInverse _ (Branch1 MTranspose (Branch1 MInverse t)) =
+        Just (Branch1 MInverse (Branch1 MTranspose t))
+swapTransposeInverse _ _ = Nothing
