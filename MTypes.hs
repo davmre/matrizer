@@ -108,7 +108,6 @@ data MError = SizeMismatch BinOp Matrix Matrix
             | Default String
             | BadDimension String
             | Parser ParseError
-            | NotImplemented String
 
 showError :: MError -> String
 showError (SizeMismatch op m1 m2) =
