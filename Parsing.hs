@@ -82,7 +82,7 @@ parseMProp = do propName <- many1 letter
                             "posdef" -> PosDef
                             "pd" -> PosDef
                             "diag" -> Diagonal
-
+                            
 parsePropList :: Parser [MProperty]
 parsePropList = sepBy parseMProp $ many1 $ oneOf " \t,"
 
@@ -90,11 +90,11 @@ parseMatrix :: Parser PreambleLine
 parseMatrix = do linespaces
                  c <- letter
                  linespaces
-                 char ':'
+                 _ <- char ':'
                  linespaces
                  sym1 <- ((liftM (:[]) letter) <|> many1 digit)
                  linespaces
-                 char 'x'
+                 _ <- char 'x'
                  linespaces
                  sym2 <- ((liftM (:[]) letter) <|> many1 digit)
                  linespaces
@@ -105,7 +105,7 @@ parseSymbolDef :: Parser PreambleLine
 parseSymbolDef = do linespaces
                     c <- letter
                     linespaces
-                    oneOf "=~"
+                    _ <- oneOf "=~"
                     linespaces
                     n <- liftM read $ many1 digit
                     return $ SymbolLine c n
@@ -152,6 +152,7 @@ subSymbolDef s defs =
         [(_, _) ] -> throwError $ BadDimension s
         [       ] -> maybe (throwError $ UnboundName c)
                            return (Map.lookup c defs)
+        _         -> throwError $ BadDimension s
 
 
 subPreamble :: [PreambleLine] -> ThrowsError SymbolTable

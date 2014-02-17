@@ -121,6 +121,7 @@ updateBinaryProps MProduct props1 props2 t1 t2 = nub $ (updateBinaryClosedProps 
                                                        if (productPosDef t1 t2) then [PosDef] else []
 updateBinaryProps MSum props1 props2 _ _ = updateBinaryClosedProps [Diagonal, Symmetric, PosDef] props1 props2
 updateBinaryProps MLinSolve props1 props2 _ _ = updateBinaryClosedProps [] props1 props2
+updateBinaryProps MCholSolve props1 props2 _ _ = updateBinaryClosedProps [] props1 props2
 
 -- try to prove positive-definiteness for a standard matrix product
 productPosDef :: MTree -> MTree -> Bool

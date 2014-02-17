@@ -1,8 +1,6 @@
 module Main where
 
 import qualified Data.Map as Map
-import Control.Monad
-import Control.Monad.Error
 import System.Environment
 
 import MTypes
@@ -30,6 +28,7 @@ errorStr ts = case ts of
                Left err -> show err
                Right s -> s
 
+main :: IO ()
 main = do args <- getArgs
           let infile = head args
           inp <- readFile infile
