@@ -35,7 +35,7 @@ ternProductSizeCheck r1 c1 r2 c2 r3 c3 = (prodSizeCheck r1 c1 r2 c2) && (prodSiz
 linsolveSizeCheck r1 c1 r2 _ = (r1 == r2) && (r1 == c1)
                   -- for now, let's say we can only apply linsolve to square matrices
 prodSizeCheck r1 c1 r2 _ = (c1 == r2)
-sumSizeCheck r1 _ r2 c2 = (r1 == r2) && (r2 == c2)
+sumSizeCheck r1 c1 r2 c2 = (r1 == r2) && (c1 == c2)
 
 squareCheck = (==)
 trueCheck = const $ const True
