@@ -1,5 +1,6 @@
 module Parsing where
 
+import Control.Applicative((<*))
 import qualified Data.Map as Map
 import Text.Parsec
 import Text.Parsec.String
@@ -29,7 +30,7 @@ token_def = emptyDef{ commentStart = "\"\"\""
                     , identLetter = oneOf ""
                     , opStart = oneOf "+-*'^"
                     , opLetter = oneOf "+-*'^1"
-                    , reservedOpNames = ["+", "", "-", "*", "^-1", "'", "\\"]
+                    , reservedOpNames = ["+", "-", "*", "^-1", "'", "\\"]
                     }
 TokenParser{ parens = m_parens
            , identifier = m_identifier
@@ -39,10 +40,11 @@ TokenParser{ parens = m_parens
            , whiteSpace = m_whiteSpace } = makeTokenParser token_def
 
 
-exprparser :: Parser MTree
-exprparser = buildExpressionParser table term <?> "expression"
+-----------------------------------------------------------------
+-- Expression Parser
+----------------------------------------------------------------
 
-table :: OperatorTable String u Identity MTree
+table :: OperatorTable String u Identity Expr
 table = [ [Prefix (m_reservedOp "-" >> return (Branch1 MNegate))] -- note: this will parse A-B as A * (-B)
         , [Postfix (m_reservedOp "^-1" >> return (Branch1 MInverse))]
         , [Postfix (m_reservedOp "'" >> return (Branch1 MTranspose))]
@@ -52,11 +54,42 @@ table = [ [Prefix (m_reservedOp "-" >> return (Branch1 MNegate))] -- note: this 
         , [Infix (m_reservedOp "+" >> return (Branch2 MSum)) AssocLeft]
         ]
 
-term :: Parser MTree
+term :: Parser Expr
 term = m_parens exprparser <|> matrix
      where matrix = do c <- letter
-                       m_whiteSpace
+                       linespaces
                        return $ Leaf c
+
+exprparser :: Parser Expr
+exprparser = buildExpressionParser table term <?> "expression"
+
+
+-----------------------------------------------------
+-- Statement Parser
+-----------------------------------------------------
+
+mainparser :: Parser Stmt
+mainparser = m_whiteSpace >> stmtparser <* eof
+
+killNothing :: [Maybe a] -> [a]
+killNothing (x:xs) = case x of
+                      Just v -> v : killNothing xs
+                      Nothing -> killNothing xs
+killNothing [] = []
+
+stmtparser :: Parser Stmt
+stmtparser = do stmts <- m_semiSep1 stmt1
+                return $ Seq $ killNothing stmts
+
+stmt1 :: Parser (Maybe Stmt)
+stmt1 = do v <- letter
+           linespaces
+           m_reservedOp "="
+           linespaces
+           e <- exprparser
+           return $ Just (Assign v e)
+        <|> do m_whiteSpace
+               return Nothing
 
 ------------------------------------------------------------
 -- Parsing Code for the preamble / symbol table
@@ -125,12 +158,12 @@ parsePreamble = endBy (try parseSymbolDef
                    <|> parseBlankLine
                    ) (char '\n')
 
-parseInput :: Parser ([PreambleLine], MTree)
+parseInput :: Parser ([PreambleLine], Stmt)
 parseInput = do lns <- parsePreamble
                 spaces
-                tree <- exprparser
-                spaces
-                return (lns, tree)
+                prgm <- mainparser
+                m_whiteSpace
+                return (lns, prgm)
 
 --------------------------------------------------------------------------------------
 -- Symbol table evaluation: ground out all variable sizes into literal
@@ -162,10 +195,10 @@ subPreamble preamble =
             mapped = mapM (subSymbolDefMatrix defs) matrices
         in (liftM Map.fromList) mapped
 
-readInput :: String -> ThrowsError (SymbolTable, MTree)
-readInput s = do (ls, tree) <- readOrThrow parseInput s
+readInput :: String -> ThrowsError (SymbolTable, Stmt)
+readInput s = do (ls, prgm) <- readOrThrow parseInput s
                  tbl <- subPreamble ls
-                 return (tbl, tree)
+                 return (tbl, prgm)
 
 -----------------------------------------------------------------
 -- Test/debugging stuff

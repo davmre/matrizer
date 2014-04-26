@@ -6,7 +6,13 @@ import MTypes
 -----------------------------------------------------
 -- Code generation for numpy arrays
 
-generateNumpy :: MTree -> String
+generateNumpyStmt :: Stmt -> String
+generateNumpyStmt (Assign v e) = [v] ++ " = " ++ generateNumpy e
+generateNumpyStmt (Seq (x:[])) = generateNumpyStmt x
+generateNumpyStmt (Seq (x:xs)) = generateNumpyStmt x ++ "\n" ++ generateNumpyStmt (Seq $ xs)
+generateNumpyStmt (Seq []) = ""
+
+generateNumpy :: Expr -> String
 generateNumpy (Leaf a) = [a]
 generateNumpy (Branch3 MTernaryProduct t1 t2 t3) = "np.dot(np.dot(" ++ (generateNumpy t1) ++ 
                                                    ", " ++ (generateNumpy t2)  ++ "), " ++ 

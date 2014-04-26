@@ -8,10 +8,14 @@ import Control.Monad.Error
 -- AST Definition
 -----------------------------------------------------------------------
 
-data MTree = Leaf Char
-           | Branch1 UnOp MTree
-           | Branch2 BinOp MTree MTree
-           | Branch3 TernOp MTree MTree MTree
+data Stmt = Assign Char Expr 
+           | Seq [Stmt]
+     deriving (Eq, Ord)
+
+data Expr = Leaf Char
+           | Branch1 UnOp Expr
+           | Branch2 BinOp Expr Expr
+           | Branch3 TernOp Expr Expr Expr
            deriving (Eq, Ord)
 data TernOp = MTernaryProduct deriving (Eq, Ord)
 data BinOp = MProduct
@@ -23,8 +27,6 @@ data UnOp = MInverse
           | MTranspose
           | MNegate
           deriving (Eq, Ord, Enum)
-
-
 
 -- AST pretty printing
 
@@ -42,13 +44,23 @@ instance Show UnOp where
     show MTranspose = "transpose"
     show MNegate = "neg"
 
-instance Show MTree where
+instance Show Expr where
     show (Leaf a) = [a]
     show (Branch1 op c) = "(" ++ show op ++ " " ++ show c ++ ")"
     show (Branch2 op a b) = "(" ++ show op ++ " " ++ show a ++ " "
          ++ show b ++ ")"
     show (Branch3 op a b c) = "(" ++ show op ++ " " ++ show a ++ " "
          ++ show b ++ " " ++ show c ++ ")"
+
+instance Show Stmt where
+   show (Assign c e) =  c : " := " ++ show e
+   show (Seq x) = case x of
+                   z:[] -> (show z) 
+                   z:zs -> (show z) ++ "\n" ++ (show $ Seq zs)
+                   _ -> "ERROR: this should never happen (in Show statement)"
+   show (Seq (x:[])) = show x
+   show (Seq (x:xs)) = show x ++ "\n" ++ (show $ Seq xs)
+   show (Seq []) = ""
 
 
 ------------------------------------------------------------------------
