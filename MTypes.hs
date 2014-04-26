@@ -54,10 +54,6 @@ instance Show Expr where
 
 instance Show Stmt where
    show (Assign c e) =  c : " := " ++ show e
-   show (Seq x) = case x of
-                   z:[] -> (show z) 
-                   z:zs -> (show z) ++ "\n" ++ (show $ Seq zs)
-                   _ -> "ERROR: this should never happen (in Show statement)"
    show (Seq (x:[])) = show x
    show (Seq (x:xs)) = show x ++ "\n" ++ (show $ Seq xs)
    show (Seq []) = ""

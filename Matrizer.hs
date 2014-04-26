@@ -26,7 +26,9 @@ dumpExprInfo tbl tree = do matr <- treeMatrix tree tbl
 dumpProgramInfo :: SymbolTable -> Stmt -> ThrowsError String
 --dumpProgramInfo tbl prgm = do flops <- programFLOPs prgm tbl
 --                              return $ "Symbol table: " ++ show tbl ++ "\nParsed as: " ++ show prgm ++ "\nNaive FLOPs required: " ++ show flops ++ "\nNaive code generated" ++ generateNumpyStmt prgm
-dumpProgramInfo tbl prgm = Right $ "Symbol table: " ++ show tbl ++ "\nParsed as: " ++ show prgm ++ "\nNaive code generated:\n" ++ generateNumpyStmt prgm
+dumpProgramInfo tbl prgm = do fintbl <- checkTypes prgm tbl
+                              flops <- programFLOPs prgm fintbl
+                              return $ "Symbol table: " ++ show tbl ++ "\nParsed as: " ++ show prgm ++ "\nNaive code generated:\n" ++ generateNumpyStmt prgm ++ "\nInferred table: " ++ show fintbl ++ "\nNaive FLOPs required: " ++ show flops 
 
 errorStr :: ThrowsError String -> String
 errorStr ts = case ts of 

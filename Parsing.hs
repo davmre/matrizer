@@ -1,6 +1,7 @@
 module Parsing where
 
 import Control.Applicative((<*))
+import Data.Maybe
 import qualified Data.Map as Map
 import Text.Parsec
 import Text.Parsec.String
@@ -71,15 +72,9 @@ exprparser = buildExpressionParser table term <?> "expression"
 mainparser :: Parser Stmt
 mainparser = m_whiteSpace >> stmtparser <* eof
 
-killNothing :: [Maybe a] -> [a]
-killNothing (x:xs) = case x of
-                      Just v -> v : killNothing xs
-                      Nothing -> killNothing xs
-killNothing [] = []
-
 stmtparser :: Parser Stmt
 stmtparser = do stmts <- m_semiSep1 stmt1
-                return $ Seq $ killNothing stmts
+                return $ Seq $ catMaybes stmts
 
 stmt1 :: Parser (Maybe Stmt)
 stmt1 = do v <- letter
