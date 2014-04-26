@@ -5,4 +5,4 @@ B: n x n
 x: n x 1
 n ~ 100
 
-ABx
+r = ABx

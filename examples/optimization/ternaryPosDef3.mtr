@@ -4,4 +4,4 @@ x: n x 1
 n ~ 100
 
 # should optimize to ABA `cholSolve` x
-(ABA)^-1x
+r = (ABA)^-1x

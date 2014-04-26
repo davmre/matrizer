@@ -3,4 +3,4 @@ b: n x 1
 n ~ 100
 
 # should optimize to A\b
-A^-1b
+r = A^-1b

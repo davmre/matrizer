@@ -3,4 +3,4 @@ B: n x n
 n ~ 100
 
 # should optimize to (BA)^-1
-A^-1B^-1
+r = A^-1B^-1

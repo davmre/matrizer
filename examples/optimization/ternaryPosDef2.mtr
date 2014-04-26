@@ -4,4 +4,4 @@ x: n x 1
 n ~ 100
 
 # should optimize to (A\B)A `cholSolve` x
-(A^-1BA)^-1x
+r = (A^-1BA)^-1x
