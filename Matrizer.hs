@@ -20,7 +20,7 @@ fakeTree = Branch2 MProduct (Branch2 MProduct (Leaf 'A') (Leaf 'B')) (Leaf 'x')
 dumpExprInfo :: SymbolTable -> Expr -> ThrowsError String
 dumpExprInfo tbl tree = do matr <- treeMatrix tree tbl
                            flops <- treeFLOPs tree tbl
-                           (optFlops, optTree) <- optimize tree tbl
+                           (optFlops, optTree) <- optimizeExpr tree tbl
                            return $ "Symbol table: " ++ show tbl ++ "\nParsed as: " ++ show tree ++ "\nResulting matrix: " ++ show matr ++ "\nNaive FLOPs required: " ++ show flops ++ "\nNaive code generated: " ++ generateNumpy tree ++ "\n\nOptimized flops required: " ++ show optFlops ++ "\nOptimized tree: " ++ show optTree ++ "\nOptimized code: " ++ generateNumpy optTree
 
 dumpProgramInfo :: SymbolTable -> Stmt -> ThrowsError String
@@ -28,7 +28,8 @@ dumpProgramInfo :: SymbolTable -> Stmt -> ThrowsError String
 --                              return $ "Symbol table: " ++ show tbl ++ "\nParsed as: " ++ show prgm ++ "\nNaive FLOPs required: " ++ show flops ++ "\nNaive code generated" ++ generateNumpyStmt prgm
 dumpProgramInfo tbl prgm = do fintbl <- checkTypes prgm tbl
                               flops <- programFLOPs prgm fintbl
-                              return $ "Symbol table: " ++ show tbl ++ "\nParsed as: " ++ show prgm ++ "\nNaive code generated:\n" ++ generateNumpyStmt prgm ++ "\nInferred table: " ++ show fintbl ++ "\nNaive FLOPs required: " ++ show flops 
+                              (optFlops, optPrgm) <- optimizePrgm prgm fintbl
+                              return $ "Symbol table: " ++ show tbl ++ "\nParsed as: " ++ show prgm ++ "\nNaive code generated:\n" ++ generateNumpyStmt prgm ++ "\nInferred table: " ++ show fintbl ++ "\nNaive FLOPs required: " ++ show flops ++ "\n\nOptimized flops required: " ++ show optFlops ++ "\nOptimized program: " ++ show optPrgm ++ "\nOptimized code: " ++ generateNumpyStmt optPrgm
 
 errorStr :: ThrowsError String -> String
 errorStr ts = case ts of 

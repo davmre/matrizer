@@ -60,6 +60,12 @@ zipperToTree (n, _) = n
 -----------------------------------------------------------------
 -- Main optimizer logic
 
+optimizePrgm :: Stmt -> SymbolTable -> ThrowsError (Int, Stmt)
+optimizePrgm (Assign v e) tbl = do (flops, eopt) <- optimizeExpr e tbl
+                                   return $ (flops, Assign v eopt)
+optimizePrgm (Seq x) tbl = do pairs <- mapM ((flip optimizePrgm) tbl) x
+                              let (flops, stmts) = unzip pairs in
+                                  return (sum flops, Seq stmts)
 
 -- toplevel optimization function: first, call optimizeHelper to
 --  get a list of all transformed versions of the current tree
@@ -70,11 +76,11 @@ zipperToTree (n, _) = n
 --  final fmap which deals with this).  Finally, sort the zipped
 --  (flops, trees) list to get the tree with the smallest FLOP count,
 --  and return that.
-optimize :: Expr -> SymbolTable -> ThrowsError (Int, Expr)
-optimize tree tbl = let (_, allTreesSet) = optimizeHelper tbl [tree] (Set.singleton tree)
-                        allTreesList = Set.toList allTreesSet
-                        sketchyFLOPsList = mapM (flip treeFLOPs tbl) allTreesList in
-                    fmap (\ flopsList -> head $ sort $ zip flopsList allTreesList) sketchyFLOPsList
+optimizeExpr :: Expr -> SymbolTable -> ThrowsError (Int, Expr)
+optimizeExpr tree tbl = let (_, allTreesSet) = optimizeHelper tbl [tree] (Set.singleton tree)
+                            allTreesList = Set.toList allTreesSet
+                            sketchyFLOPsList = mapM (flip treeFLOPs tbl) allTreesList in
+                        fmap (\ flopsList -> head $ sort $ zip flopsList allTreesList) sketchyFLOPsList
 
 
 -- inputs: a list of still-to-be-transformed expressions, and a set of
