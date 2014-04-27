@@ -69,12 +69,12 @@ exprparser = buildExpressionParser table term <?> "expression"
 -- Statement Parser
 -----------------------------------------------------
 
-mainparser :: Parser Stmt
-mainparser = m_whiteSpace >> stmtparser <* eof
+mainparser :: Parser Program
+mainparser = m_whiteSpace >> programparser <* eof
 
-stmtparser :: Parser Stmt
-stmtparser = do stmts <- m_semiSep1 stmt1
-                return $ Seq $ catMaybes stmts
+programparser :: Parser Program
+programparser = do stmts <- m_semiSep1 stmt1
+                   return $ Seq $ catMaybes stmts
 
 stmt1 :: Parser (Maybe Stmt)
 stmt1 = do v <- letter
@@ -153,7 +153,7 @@ parsePreamble = endBy (try parseSymbolDef
                    <|> parseBlankLine
                    ) (char '\n')
 
-parseInput :: Parser ([PreambleLine], Stmt)
+parseInput :: Parser ([PreambleLine], Program)
 parseInput = do lns <- parsePreamble
                 spaces
                 prgm <- mainparser
@@ -190,7 +190,7 @@ subPreamble preamble =
             mapped = mapM (subSymbolDefMatrix defs) matrices
         in (liftM Map.fromList) mapped
 
-readInput :: String -> ThrowsError (SymbolTable, Stmt)
+readInput :: String -> ThrowsError (SymbolTable, Program)
 readInput s = do (ls, prgm) <- readOrThrow parseInput s
                  tbl <- subPreamble ls
                  return (tbl, prgm)

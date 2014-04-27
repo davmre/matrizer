@@ -9,7 +9,9 @@ import Control.Monad.Error
 -----------------------------------------------------------------------
 
 data Stmt = Assign Char Expr 
-           | Seq [Stmt]
+     deriving (Eq, Ord)
+
+data Program = Seq [Stmt]
      deriving (Eq, Ord)
 
 data Expr = Leaf Char
@@ -54,6 +56,8 @@ instance Show Expr where
 
 instance Show Stmt where
    show (Assign c e) =  c : " := " ++ show e
+
+instance Show Program where
    show (Seq (x:[])) = show x
    show (Seq (x:xs)) = show x ++ "\n" ++ (show $ Seq xs)
    show (Seq []) = ""

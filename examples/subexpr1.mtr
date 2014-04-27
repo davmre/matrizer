@@ -1,0 +1,10 @@
+# simple matrix-vector multiplication
+
+A: n x n
+x: n x 1
+k: n x 1
+w: n x 1
+n ~ 100
+
+y=k'(Ax);
+z=w'(Ax);

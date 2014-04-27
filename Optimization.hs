@@ -1,6 +1,8 @@
 module Optimization where
 
+import Data.Maybe
 import qualified Data.Map as Map
+import qualified Data.MultiMap as MultiMap
 import qualified Data.Set as Set
 
 import Data.List
@@ -60,14 +62,128 @@ zipperToTree (n, _) = n
 -----------------------------------------------------------------
 -- Main optimizer logic
 
-optimizePrgm :: Stmt -> SymbolTable -> ThrowsError (Int, Stmt)
-optimizePrgm (Assign v e) tbl = do (flops, eopt) <- optimizeExpr e tbl
-                                   return $ (flops, Assign v eopt)
-optimizePrgm (Seq x) tbl = do pairs <- mapM ((flip optimizePrgm) tbl) x
-                              let (flops, stmts) = unzip pairs in
-                                  return (sum flops, Seq stmts)
+optimizePrgm :: Program -> SymbolTable -> ThrowsError (Int, Program)
+optimizePrgm prgm tbl = let smap = buildGlobalSubExpressionMap prgm
+                            subexprs = commonSubExpressions smap
+                            (newPrgm, newTbl) = foldl factorSubExpression (prgm, tbl) subexprs in
+                        optimizePrgmLocal newPrgm newTbl
 
--- toplevel optimization function: first, call optimizeHelper to
+optimizePrgmLocal :: Program -> SymbolTable -> ThrowsError (Int, Program)
+optimizePrgmLocal (Seq x) tbl = do pairs <- mapM optimizeStmt x
+                                   let (flops, stmts) = unzip pairs in
+                                       return (sum flops, Seq stmts)
+                                where
+                                optimizeStmt (Assign v e) = do (flops, eopt) <- optimizeExpr e tbl
+                                                               return $ (flops, Assign v eopt)
+
+----------------------------------------------------------------
+
+-- common subexpression elimination code
+type SubExprLoc = (Char, Breadcrumbs)
+type SubExprMap = MultiMap.MultiMap Expr SubExprLoc
+
+buildGlobalSubExpressionMap :: Program -> SubExprMap
+buildGlobalSubExpressionMap (Seq xs) = mergeMultiMaps (map buildStmtMap xs) where
+            buildStmtMap (Assign v e) = buildSubexpressionMap MultiMap.empty  v (e, [])
+            -- merge values from a list of MultiMaps into a single Map
+            mergeMultiMaps :: (Ord a) => [MultiMap.MultiMap a b] -> MultiMap.MultiMap a b
+            mergeMultiMaps multimaps = let maps = map MultiMap.toMap multimaps
+                                           oneMap = Map.unionsWith (++) maps in
+                                       MultiMap.fromMap oneMap
+
+-- build a subexpression map for a given expression
+buildSubexpressionMap :: SubExprMap -> Char -> MZipper -> SubExprMap
+buildSubexpressionMap smap stmt z@( n@(Branch1 _ _), bs) = 
+                      let childMap = maybe smap (buildSubexpressionMap smap stmt) (goDown z) in
+                      MultiMap.insert n (stmt, bs) childMap 
+buildSubexpressionMap smap stmt z@( n@(Branch2 _ _ _), bs) = 
+                      let leftMap = maybe smap (buildSubexpressionMap smap stmt) (goLeft z)
+                          rightMap = maybe leftMap (buildSubexpressionMap leftMap stmt) (goRight z) in
+                      MultiMap.insert n (stmt, bs) rightMap 
+buildSubexpressionMap smap stmt z@( n@(Branch3 _ _ _ _), bs) = 
+                      let leftMap = maybe smap (buildSubexpressionMap smap stmt) (goLeft z)
+                          centerMap = maybe leftMap (buildSubexpressionMap leftMap stmt) (goDown z)
+                          rightMap = maybe centerMap (buildSubexpressionMap centerMap stmt) (goRight z) in
+                      MultiMap.insert n (stmt, bs) rightMap 
+buildSubexpressionMap smap _ (Leaf _ , _) = smap
+
+
+-- given a character specifying a given statement, remove all of those expressions from the map
+removeLineFromMap :: SubExprMap -> Char -> SubExprMap
+removeLineFromMap smap v = let m = MultiMap.toMap smap
+                               filtered_m = Map.map (filter (\(vv, _) -> (vv == v) )) m in
+                           MultiMap.fromMap filtered_m
+
+updateMapWithLine :: SubExprMap -> Stmt -> SubExprMap
+updateMapWithLine smap (Assign v e) = buildSubexpressionMap smap v (e, [])
+
+-- generate a list of all common subexpressions: expressions that occur at least twice
+commonSubExpressions :: SubExprMap -> [(Expr, [SubExprLoc])]
+commonSubExpressions smap = let l = Map.toList $ MultiMap.toMap smap
+                                l_notrans = filter (\(e, _) -> not $ isTranspose e) l in
+                            filter (\(_, locs) -> (length locs > 1)) l_notrans
+                            where isTranspose (Branch1 MTranspose (Leaf _)) = True
+                                  isTranspose _ = False
+
+-- given a subexpression, return the program transformed to factor out
+-- that subexpression into its own statement.
+factorSubExpression :: (Program, SymbolTable) -> (Expr, [SubExprLoc]) -> (Program, SymbolTable)
+factorSubExpression ((Seq stmts), tbl) (e, locs) = 
+    let newVar = getNewVar tbl
+        (Right newMatrix) = (treeMatrix e tbl)
+        newTbl = Map.insert newVar newMatrix tbl
+        newStmts = subAll stmts newVar locs
+        newIdx = minimum $ catMaybes $ map (stmtPos newStmts) (fst $ unzip locs)
+        (p,ps) = splitAt newIdx newStmts in
+    (Seq $ p ++ (Assign newVar e):ps, newTbl)
+    where
+    getNewVar oldTbl = maybe 'T' id (find ((flip Map.notMember) oldTbl) "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz")
+    stmtPos stmtList v = findIndex (\(Assign vv _) -> (vv == v)) stmtList
+
+
+-- given a list of locations where a particular subexpression occurs,
+-- return the program in which all of those locations are replaced by
+-- the given variable
+subAll :: [Stmt] -> Char -> [SubExprLoc] -> [Stmt]
+subAll stmts newVar (x:xs) = subAll (replaceSubExpInPrgm stmts newVar x) newVar xs
+subAll stmts _ [] = stmts
+
+replaceSubExpInPrgm :: [Stmt] -> Char -> SubExprLoc -> [Stmt]
+replaceSubExpInPrgm stmts newVar (vv, bs) = map (replaceSubExp newVar (vv, bs)) stmts
+
+replaceSubExp :: Char -> SubExprLoc -> Stmt -> Stmt
+replaceSubExp newVar (vv, bs) (Assign v e)  = 
+              if (v /= vv) 
+              then Assign v e
+              else let newZipper = recreateZipper (reverse bs) (Just (e, [])) in
+              case newZipper of
+              (Just z) -> Assign vv (reconstructTree z (Leaf newVar))
+              Nothing -> Assign vv e
+
+-- Given a set of breadcrumbs pointing to some location in an old expression tree,
+-- and a zipper initialized to the root of a new expression tree,
+-- return the zipper pointing to the corresponding location in the new
+-- tree. 
+-- Note that the breadcrumbs need to be in the reverse order of a
+-- standard zipper, i.e. they need to give directions from the top
+-- down, rather than the bottom up. Currently I solve this by just
+-- reversing the list. A better approach would be to define a new set
+-- of goLeft/Right/etc methods that build the list in the reverse
+-- order, and use these in buildSubexpressionMap -- defining new
+-- methods would also let us just store a list of crumbs while
+-- ignoring the zipper aspect entirely (so we're not passing around
+-- pieces of the old trees which we then ignore). I haven't done this
+-- yet because it's messy, and it's not clear this is a bottleneck.
+recreateZipper :: Breadcrumbs -> Maybe MZipper -> Maybe MZipper
+recreateZipper (LeftCrumb _ _:bs) (Just z) = recreateZipper bs (goLeft z)
+recreateZipper ((RightCrumb _ _):bs) (Just z) = recreateZipper bs (goRight z)
+recreateZipper ((SingleCrumb _):bs) (Just z) = recreateZipper bs (goDown z)
+recreateZipper ((TernCrumb _ _ _):bs) (Just z) = recreateZipper bs (goDown z)
+recreateZipper [] z = z 
+recreateZipper _ Nothing = Nothing
+
+----------------------------------------------------------------
+-- toplevel expression optimization function: first, call optimizeHelper to
 --  get a list of all transformed versions of the current tree
 --  (applying all rules at every node until no new trees are
 --  produced). Second, calculate FLOPs for each of the transformed
@@ -131,8 +247,9 @@ optimizeAtNode tbl t = mapMaybeFunc t [f tbl | f <- optimizationRules]
 reconstructTree :: MZipper -> Expr -> Expr
 reconstructTree (_, bs) t2 = zipperToTree $ topMost (t2, bs)
 
--- Utility function used by optimizeAtNode: map a function f over a
--- list, silently discarding any element for which f returns Nothing.
+-- Utility function used by optimizeAtNode: apply a list of functions
+-- to a constant input, silently discarding any element for which f
+-- returns Nothing.
 mapMaybeFunc :: a -> [(a -> Maybe b)] -> [b]
 mapMaybeFunc _ []     = []
 mapMaybeFunc x (f:fs) =

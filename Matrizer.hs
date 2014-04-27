@@ -18,11 +18,11 @@ fakeTree :: Expr
 fakeTree = Branch2 MProduct (Branch2 MProduct (Leaf 'A') (Leaf 'B')) (Leaf 'x')
 
 
-dumpInfo :: SymbolTable -> Stmt -> ThrowsError String
+dumpInfo :: SymbolTable -> Program -> ThrowsError String
 dumpInfo tbl prgm = do fintbl <- checkTypes prgm tbl
                        flops <- programFLOPs prgm fintbl
                        (optFlops, optPrgm) <- optimizePrgm prgm fintbl
-                       return $ "Preamble symbol table: " ++ show tbl ++ "\nCode parsed as:\n" ++ show prgm ++ "\nInferred symbol table: " ++ show fintbl ++ "\nNaive FLOPs required: " ++ show flops ++ "\nNaive code generated:\n" ++ generateNumpyStmt prgm ++ "\n\nOptimized flops required: " ++ show optFlops ++ "\nOptimized program:\n" ++ show optPrgm ++ "\nOptimized code generated:\n" ++ generateNumpyStmt optPrgm
+                       return $ "Preamble symbol table: " ++ show tbl ++ "\nCode parsed as:\n" ++ show prgm ++ "\nInferred symbol table: " ++ show fintbl ++ "\nNaive FLOPs required: " ++ show flops ++ "\nNaive code generated:\n" ++ generateNumpy prgm ++ "\n\nOptimized flops required: " ++ show optFlops ++ "\nOptimized program:\n" ++ show optPrgm ++ "\nOptimized code generated:\n" ++ generateNumpy optPrgm
 
 errorStr :: ThrowsError String -> String
 errorStr ts = case ts of 
