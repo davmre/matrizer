@@ -77,11 +77,13 @@ programparser = do stmts <- m_semiSep1 stmt1
                    return $ Seq $ catMaybes stmts
 
 stmt1 :: Parser (Maybe Stmt)
-stmt1 = do v <- m_identifier
+stmt1 = do tmpStr <- try (string "tmp") <|> string ""
+           linespaces
+           v <- m_identifier
            m_reservedOp "="
            linespaces
            e <- exprparser
-           return $ Just (Assign v e False)
+           return $ Just (Assign v e (tmpStr == "tmp"))
         <|> do m_whiteSpace
                return Nothing
 
