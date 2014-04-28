@@ -12,7 +12,7 @@ generateNumpy (Seq (x:xs)) = generateNumpyStmt x ++ "\n" ++ generateNumpy (Seq $
 generateNumpy (Seq []) = ""
 
 generateNumpyStmt :: Stmt -> String
-generateNumpyStmt (Assign v e) = v ++ " = " ++ generateNumpyExpr e
+generateNumpyStmt (Assign v e _) = v ++ " = " ++ generateNumpyExpr e
 
 generateNumpyExpr :: Expr -> String
 generateNumpyExpr (Leaf a) = a

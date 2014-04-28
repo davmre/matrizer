@@ -26,7 +26,7 @@ data UnOp = MInverse
           | MNegate
           deriving (Eq, Ord, Enum)
 
-data Stmt = Assign VarName Expr 
+data Stmt = Assign VarName Expr Bool
      deriving (Eq, Ord)
 
 data Program = Seq [Stmt]
@@ -57,7 +57,7 @@ instance Show Expr where
          ++ show b ++ " " ++ show c ++ ")"
 
 instance Show Stmt where
-   show (Assign v e) =  v ++ " := " ++ show e
+   show (Assign v e tmp) =  v ++ " := " ++ show e ++ (if tmp then " #temporary"  else "")
 
 instance Show Program where
    show (Seq (x:[])) = show x

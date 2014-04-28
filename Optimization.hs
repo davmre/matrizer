@@ -73,8 +73,8 @@ optimizePrgmLocal (Seq x) tbl = do pairs <- mapM optimizeStmt x
                                    let (flops, stmts) = unzip pairs in
                                        return (sum flops, Seq stmts)
                                 where
-                                optimizeStmt (Assign v e) = do (flops, eopt) <- optimizeExpr e tbl
-                                                               return $ (flops, Assign v eopt)
+                                optimizeStmt (Assign v e tmp) = do (flops, eopt) <- optimizeExpr e tbl
+                                                                   return $ (flops, Assign v eopt tmp)
 
 ----------------------------------------------------------------
 
@@ -84,7 +84,7 @@ type SubExprMap = MultiMap.MultiMap Expr SubExprLoc
 
 buildGlobalSubExpressionMap :: Program -> SubExprMap
 buildGlobalSubExpressionMap (Seq xs) = mergeMultiMaps (map buildStmtMap xs) where
-            buildStmtMap (Assign v e) = buildSubexpressionMap MultiMap.empty  v (e, [])
+            buildStmtMap (Assign v e _) = buildSubexpressionMap MultiMap.empty  v (e, [])
             -- merge values from a list of MultiMaps into a single Map
             mergeMultiMaps :: (Ord a) => [MultiMap.MultiMap a b] -> MultiMap.MultiMap a b
             mergeMultiMaps multimaps = let maps = map MultiMap.toMap multimaps
@@ -115,7 +115,7 @@ removeLineFromMap smap v = let m = MultiMap.toMap smap
                            MultiMap.fromMap filtered_m
 
 updateMapWithLine :: SubExprMap -> Stmt -> SubExprMap
-updateMapWithLine smap (Assign v e) = buildSubexpressionMap smap v (e, [])
+updateMapWithLine smap (Assign v e _) = buildSubexpressionMap smap v (e, [])
 
 -- generate a list of all common subexpressions: expressions that occur at least twice
 commonSubExpressions :: SubExprMap -> [(Expr, [SubExprLoc])]
@@ -135,10 +135,10 @@ factorSubExpression ((Seq stmts), tbl) (e, locs) =
         newStmts = subAll stmts newVar locs
         newIdx = minimum $ catMaybes $ map (stmtPos newStmts) (fst $ unzip locs)
         (p,ps) = splitAt newIdx newStmts in
-    (Seq $ p ++ (Assign newVar e):ps, newTbl)
+    (Seq $ p ++ (Assign newVar e True):ps, newTbl)
     where
     getNewVar oldTbl = maybe "tmp11" id (find ((flip Map.notMember) oldTbl) ["tmp1", "tmp2", "tmp3", "tmp4", "tmp5", "tmp6", "tmp7", "tmp8", "tmp9", "tmp10"])
-    stmtPos stmtList v = findIndex (\(Assign vv _) -> (vv == v)) stmtList
+    stmtPos stmtList v = findIndex (\(Assign vv _ _) -> (vv == v)) stmtList
 
 
 -- given a list of locations where a particular subexpression occurs,
@@ -152,13 +152,13 @@ replaceSubExpInPrgm :: [Stmt] -> VarName -> SubExprLoc -> [Stmt]
 replaceSubExpInPrgm stmts newVar (vv, bs) = map (replaceSubExp newVar (vv, bs)) stmts
 
 replaceSubExp :: VarName -> SubExprLoc -> Stmt -> Stmt
-replaceSubExp newVar (vv, bs) (Assign v e)  = 
+replaceSubExp newVar (vv, bs) (Assign v e tmp)  = 
               if (v /= vv) 
-              then Assign v e
+              then Assign v e tmp
               else let newZipper = recreateZipper (reverse bs) (Just (e, [])) in
               case newZipper of
-              (Just z) -> Assign vv (reconstructTree z (Leaf newVar))
-              Nothing -> Assign vv e
+              (Just z) -> Assign vv (reconstructTree z (Leaf newVar)) tmp
+              Nothing -> Assign vv e tmp
 
 -- Given a set of breadcrumbs pointing to some location in an old expression tree,
 -- and a zipper initialized to the root of a new expression tree,

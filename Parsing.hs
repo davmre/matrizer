@@ -81,7 +81,7 @@ stmt1 = do v <- m_identifier
            m_reservedOp "="
            linespaces
            e <- exprparser
-           return $ Just (Assign v e)
+           return $ Just (Assign v e False)
         <|> do m_whiteSpace
                return Nothing
 
@@ -167,7 +167,7 @@ subSymbolDefMatrix :: Map.Map Char Int -> (VarName, MatrixSym) -> ThrowsError (V
 subSymbolDefMatrix defs (c, (MatrixSym sym1 sym2 propList)) =
     do n1 <- subSymbolDef sym1 defs
        n2 <- subSymbolDef sym2 defs
-       return (c, Matrix n1 n2 propList)
+       return (c, Matrix n1 n2 propList )
 
 -- TODO: Gaping holes in the pattern match of this function
 subSymbolDef :: String -> Map.Map Char Int -> ThrowsError Int
