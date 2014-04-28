@@ -5,5 +5,5 @@ B: n x n
 x: n x 1
 n ~ 100
 
-# should optimize to A(Bx)
-r = ABx
+# should optimize to A(B*x)
+r = A*B*x

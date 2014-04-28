@@ -28,7 +28,7 @@ token_def = emptyDef{ commentStart = "\"\"\""
                     , commentEnd = "\"\"\""
                     , commentLine = "#"
                     , identStart = letter
-                    , identLetter = oneOf ""
+                    , identLetter = alphaNum
                     , opStart = oneOf "+-*'^"
                     , opLetter = oneOf "+-*'^1"
                     , reservedOpNames = ["+", "-", "*", "^-1", "'", "\\"]
@@ -57,9 +57,9 @@ table = [ [Prefix (m_reservedOp "-" >> return (Branch1 MNegate))] -- note: this 
 
 term :: Parser Expr
 term = m_parens exprparser <|> matrix
-     where matrix = do c <- letter
-                       linespaces
-                       return $ Leaf c
+     --where matrix = do s <- m_identifier
+     --                  return $ Leaf s
+     where matrix = m_identifier >>= return . Leaf
 
 exprparser :: Parser Expr
 exprparser = buildExpressionParser table term <?> "expression"
@@ -77,8 +77,7 @@ programparser = do stmts <- m_semiSep1 stmt1
                    return $ Seq $ catMaybes stmts
 
 stmt1 :: Parser (Maybe Stmt)
-stmt1 = do v <- letter
-           linespaces
+stmt1 = do v <- m_identifier
            m_reservedOp "="
            linespaces
            e <- exprparser
@@ -116,8 +115,7 @@ parsePropList = sepBy parseMProp $ many1 $ oneOf " \t,"
 
 parseMatrix :: Parser PreambleLine
 parseMatrix = do linespaces
-                 c <- letter
-                 linespaces
+                 v <- m_identifier
                  _ <- char ':'
                  linespaces
                  sym1 <- ((liftM (:[]) letter) <|> many1 digit)
@@ -127,7 +125,7 @@ parseMatrix = do linespaces
                  sym2 <- ((liftM (:[]) letter) <|> many1 digit)
                  linespaces
                  propList <- parsePropList
-                 return $ MatrixLine c (MatrixSym sym1 sym2 propList)
+                 return $ MatrixLine v (MatrixSym sym1 sym2 propList)
 
 parseSymbolDef :: Parser PreambleLine
 parseSymbolDef = do linespaces
@@ -165,7 +163,7 @@ parseInput = do lns <- parsePreamble
 -- sizes (i.e. convert MatrixSym to Matrix).
 --------------------------------------------------------------------------------------
 
-subSymbolDefMatrix :: Map.Map Char Int -> (Char, MatrixSym) -> ThrowsError (Char, Matrix)
+subSymbolDefMatrix :: Map.Map Char Int -> (VarName, MatrixSym) -> ThrowsError (VarName, Matrix)
 subSymbolDefMatrix defs (c, (MatrixSym sym1 sym2 propList)) =
     do n1 <- subSymbolDef sym1 defs
        n2 <- subSymbolDef sym2 defs
@@ -178,7 +176,7 @@ subSymbolDef s defs =
     in case reads s of
         [(n, "")] -> return n
         [(_, _) ] -> throwError $ BadDimension s
-        [       ] -> maybe (throwError $ UnboundName c)
+        [       ] -> maybe (throwError $ UnboundName [c])
                            return (Map.lookup c defs)
         _         -> throwError $ BadDimension s
 

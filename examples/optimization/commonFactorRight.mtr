@@ -4,4 +4,4 @@ C: n x n
 n ~ 100
 
 # should optimize to (A+B)C
-r = AC + BC
+r = A*C + B*C

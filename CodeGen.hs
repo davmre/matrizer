@@ -12,10 +12,10 @@ generateNumpy (Seq (x:xs)) = generateNumpyStmt x ++ "\n" ++ generateNumpy (Seq $
 generateNumpy (Seq []) = ""
 
 generateNumpyStmt :: Stmt -> String
-generateNumpyStmt (Assign v e) = [v] ++ " = " ++ generateNumpyExpr e
+generateNumpyStmt (Assign v e) = v ++ " = " ++ generateNumpyExpr e
 
 generateNumpyExpr :: Expr -> String
-generateNumpyExpr (Leaf a) = [a]
+generateNumpyExpr (Leaf a) = a
 generateNumpyExpr (Branch3 MTernaryProduct t1 t2 t3) = "np.dot(np.dot(" ++ (generateNumpyExpr t1) ++ 
                                                    ", " ++ (generateNumpyExpr t2)  ++ "), " ++ 
                                                    (generateNumpyExpr t3) ++ ")"

@@ -8,13 +8,9 @@ import Control.Monad.Error
 -- AST Definition
 -----------------------------------------------------------------------
 
-data Stmt = Assign Char Expr 
-     deriving (Eq, Ord)
+type VarName = String
 
-data Program = Seq [Stmt]
-     deriving (Eq, Ord)
-
-data Expr = Leaf Char
+data Expr = Leaf VarName
            | Branch1 UnOp Expr
            | Branch2 BinOp Expr Expr
            | Branch3 TernOp Expr Expr Expr
@@ -29,6 +25,12 @@ data UnOp = MInverse
           | MTranspose
           | MNegate
           deriving (Eq, Ord, Enum)
+
+data Stmt = Assign VarName Expr 
+     deriving (Eq, Ord)
+
+data Program = Seq [Stmt]
+     deriving (Eq, Ord)
 
 -- AST pretty printing
 
@@ -47,7 +49,7 @@ instance Show UnOp where
     show MNegate = "neg"
 
 instance Show Expr where
-    show (Leaf a) = [a]
+    show (Leaf a) = a
     show (Branch1 op c) = "(" ++ show op ++ " " ++ show c ++ ")"
     show (Branch2 op a b) = "(" ++ show op ++ " " ++ show a ++ " "
          ++ show b ++ ")"
@@ -55,7 +57,7 @@ instance Show Expr where
          ++ show b ++ " " ++ show c ++ ")"
 
 instance Show Stmt where
-   show (Assign c e) =  c : " := " ++ show e
+   show (Assign v e) =  v ++ " := " ++ show e
 
 instance Show Program where
    show (Seq (x:[])) = show x
@@ -67,8 +69,7 @@ instance Show Program where
 -- Symbol Table Definition
 ------------------------------------------------------------------------
 
-type SymbolTable = Map.Map Char Matrix
-type SizeTable = Map.Map Char Int
+type SymbolTable = Map.Map VarName Matrix
 
 data MatrixSym = MatrixSym String String [MProperty]
 data Matrix = Matrix Int Int [MProperty]
@@ -76,7 +77,7 @@ data MProperty = Symmetric
                | PosDef
                | Diagonal
                deriving (Eq, Enum)
-data PreambleLine = MatrixLine Char MatrixSym
+data PreambleLine = MatrixLine VarName MatrixSym
                   | SymbolLine Char Int
                   | BlankLine
                   deriving (Show)
@@ -116,7 +117,7 @@ data MError = SizeMismatch BinOp Matrix Matrix
             | SizeMismatchTern TernOp Matrix Matrix Matrix
             | WrongProperties BinOp [MProperty] [MProperty]
             | InvalidOp UnOp Matrix
-            | UnboundName Char
+            | UnboundName VarName
             | Default String
             | BadDimension String
             | Parser ParseError
@@ -135,7 +136,7 @@ showError (WrongProperties op props1 props2) =
         ++ ", " ++ show props2
 showError (InvalidOp op m) =
         "Invalid operation '" ++ show op ++ "' on matrix " ++ show m
-showError (UnboundName c)  = "Undefined matrix name " ++ show c
+showError (UnboundName s)  = "Undefined matrix name " ++ s
 showError (Default s)      = "Default Error???" ++ show s
 showError (BadDimension d) = "Invalid dimension specification'" ++ show d ++ "'"
 showError (Parser err)     = "Parse error at " ++ show err

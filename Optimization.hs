@@ -79,7 +79,7 @@ optimizePrgmLocal (Seq x) tbl = do pairs <- mapM optimizeStmt x
 ----------------------------------------------------------------
 
 -- common subexpression elimination code
-type SubExprLoc = (Char, Breadcrumbs)
+type SubExprLoc = (VarName, Breadcrumbs)
 type SubExprMap = MultiMap.MultiMap Expr SubExprLoc
 
 buildGlobalSubExpressionMap :: Program -> SubExprMap
@@ -92,7 +92,7 @@ buildGlobalSubExpressionMap (Seq xs) = mergeMultiMaps (map buildStmtMap xs) wher
                                        MultiMap.fromMap oneMap
 
 -- build a subexpression map for a given expression
-buildSubexpressionMap :: SubExprMap -> Char -> MZipper -> SubExprMap
+buildSubexpressionMap :: SubExprMap -> VarName -> MZipper -> SubExprMap
 buildSubexpressionMap smap stmt z@( n@(Branch1 _ _), bs) = 
                       let childMap = maybe smap (buildSubexpressionMap smap stmt) (goDown z) in
                       MultiMap.insert n (stmt, bs) childMap 
@@ -109,7 +109,7 @@ buildSubexpressionMap smap _ (Leaf _ , _) = smap
 
 
 -- given a character specifying a given statement, remove all of those expressions from the map
-removeLineFromMap :: SubExprMap -> Char -> SubExprMap
+removeLineFromMap :: SubExprMap -> VarName -> SubExprMap
 removeLineFromMap smap v = let m = MultiMap.toMap smap
                                filtered_m = Map.map (filter (\(vv, _) -> (vv == v) )) m in
                            MultiMap.fromMap filtered_m
@@ -137,21 +137,21 @@ factorSubExpression ((Seq stmts), tbl) (e, locs) =
         (p,ps) = splitAt newIdx newStmts in
     (Seq $ p ++ (Assign newVar e):ps, newTbl)
     where
-    getNewVar oldTbl = maybe 'T' id (find ((flip Map.notMember) oldTbl) "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz")
+    getNewVar oldTbl = maybe "tmp11" id (find ((flip Map.notMember) oldTbl) ["tmp1", "tmp2", "tmp3", "tmp4", "tmp5", "tmp6", "tmp7", "tmp8", "tmp9", "tmp10"])
     stmtPos stmtList v = findIndex (\(Assign vv _) -> (vv == v)) stmtList
 
 
 -- given a list of locations where a particular subexpression occurs,
 -- return the program in which all of those locations are replaced by
 -- the given variable
-subAll :: [Stmt] -> Char -> [SubExprLoc] -> [Stmt]
+subAll :: [Stmt] -> VarName -> [SubExprLoc] -> [Stmt]
 subAll stmts newVar (x:xs) = subAll (replaceSubExpInPrgm stmts newVar x) newVar xs
 subAll stmts _ [] = stmts
 
-replaceSubExpInPrgm :: [Stmt] -> Char -> SubExprLoc -> [Stmt]
+replaceSubExpInPrgm :: [Stmt] -> VarName -> SubExprLoc -> [Stmt]
 replaceSubExpInPrgm stmts newVar (vv, bs) = map (replaceSubExp newVar (vv, bs)) stmts
 
-replaceSubExp :: Char -> SubExprLoc -> Stmt -> Stmt
+replaceSubExp :: VarName -> SubExprLoc -> Stmt -> Stmt
 replaceSubExp newVar (vv, bs) (Assign v e)  = 
               if (v /= vv) 
               then Assign v e
@@ -288,7 +288,7 @@ mapMaybeFunc x (f:fs) =
 -- Maybe Expr) (i.e. const) for e.g. binopSumRules. Then remove the
 -- extra arguments that are cluttering everything.
 
-type Rule  =  Map.Map Char Matrix -> Expr -> Maybe Expr
+type Rule  =  SymbolTable -> Expr -> Maybe Expr
 type Rules = [Rule]
 
 binopSumRules :: Rules

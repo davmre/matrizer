@@ -4,5 +4,5 @@ A: n x n
 x: n x 1
 n ~ 100
 
-y=Ax;
+y=A x;
 z=x'y;
