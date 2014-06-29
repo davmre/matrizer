@@ -16,6 +16,7 @@ generateNumpyStmt (Assign v e _) = v ++ " = " ++ generateNumpyExpr e
 
 generateNumpyExpr :: Expr -> String
 generateNumpyExpr (Leaf a) = a
+generateNumpyExpr (IdentityLeaf n) = "np.eye(" ++ (show n) ++ ")"
 generateNumpyExpr (Branch3 MTernaryProduct t1 t2 t3) = "np.dot(np.dot(" ++ (generateNumpyExpr t1) ++ 
                                                    ", " ++ (generateNumpyExpr t2)  ++ "), " ++ 
                                                    (generateNumpyExpr t3) ++ ")"

@@ -15,8 +15,10 @@ fakeSymbols :: SymbolTable
 fakeSymbols = Map.fromList [("A", Matrix 1000 1000 []), ("B", Matrix 1000 1000 []), ("x", Matrix 1000 1 [])]
 
 fakeTree :: Expr
-fakeTree = Branch2 MProduct (Branch2 MProduct (Leaf "A") (Leaf "B")) (Leaf "x")
+fakeTree = Branch2 MProduct (Branch2 MProduct (Leaf "A") (Leaf "B") ) (Leaf "x")
 
+fakePrgm :: Program
+fakePrgm = Seq (Assign "B" (Branch2 MProduct (Leaf "A") (IdentityLeaf 1000)) False : [])
 
 dumpInfo :: SymbolTable -> Program -> ThrowsError String
 dumpInfo tbl prgm = do fintbl <- checkTypes prgm tbl

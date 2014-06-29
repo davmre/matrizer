@@ -11,10 +11,12 @@ import Control.Monad.Error
 type VarName = String
 
 data Expr = Leaf VarName
+           | IdentityLeaf Int
            | Branch1 UnOp Expr
            | Branch2 BinOp Expr Expr
            | Branch3 TernOp Expr Expr Expr
            deriving (Eq, Ord)
+
 data TernOp = MTernaryProduct deriving (Eq, Ord)
 data BinOp = MProduct
            | MSum
@@ -50,6 +52,7 @@ instance Show UnOp where
 
 instance Show Expr where
     show (Leaf a) = a
+    show (IdentityLeaf n) = "I"
     show (Branch1 op c) = "(" ++ show op ++ " " ++ show c ++ ")"
     show (Branch2 op a b) = "(" ++ show op ++ " " ++ show a ++ " "
          ++ show b ++ ")"
