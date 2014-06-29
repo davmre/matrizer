@@ -52,7 +52,7 @@ instance Show UnOp where
 
 instance Show Expr where
     show (Leaf a) = a
-    show (IdentityLeaf n) = "I"
+    show (IdentityLeaf _) = "I"
     show (Branch1 op c) = "(" ++ show op ++ " " ++ show c ++ ")"
     show (Branch2 op a b) = "(" ++ show op ++ " " ++ show a ++ " "
          ++ show b ++ ")"
@@ -123,6 +123,7 @@ data MError = SizeMismatch BinOp Matrix Matrix
             | UnboundName VarName
             | Default String
             | BadDimension String
+            | AnalysisError String
             | Parser ParseError
 
 showError :: MError -> String
@@ -143,6 +144,7 @@ showError (UnboundName s)  = "Undefined matrix name " ++ s
 showError (Default s)      = "Default Error???" ++ show s
 showError (BadDimension d) = "Invalid dimension specification'" ++ show d ++ "'"
 showError (Parser err)     = "Parse error at " ++ show err
+showError (AnalysisError err)     = "Analysis error: " ++ show err
 
 instance Show MError where show = showError
 

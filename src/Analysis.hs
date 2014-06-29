@@ -6,6 +6,56 @@ import Control.Monad.Error
 
 import MTypes
 
+-----------------------------------------------------------------------
+-- Identity special-case: replace all "I" leafs with IdentityLeafs of 
+-- appropriate size
+-----------------------------------------------------------------------
+
+idshape2 :: BinOp -> Bool -> Int -> Int -> Int
+idshape2 MProduct idOnRight n m = if idOnRight then m else n
+idshape2 MSum _ n _ = n -- the n != m case will be caught in a typecheck later
+idshape2 MLinSolve idOnRight n m = if idOnRight then n else m
+idshape2 MCholSolve idOnRight n m = if idOnRight then n else m
+
+
+subIdentityExpr :: Expr -> SymbolTable -> ThrowsError Expr
+subIdentityExpr (Leaf "I") _ = throwError $ AnalysisError "could not infer size of identity matrix"
+subIdentityExpr (Leaf a) _ = return $ Leaf a
+subIdentityExpr (IdentityLeaf n) _ = return $ IdentityLeaf n
+subIdentityExpr (Branch1 op a) tbl = do newA <- subIdentityExpr a tbl
+                                        return $ Branch1 op newA
+subIdentityExpr (Branch2 op a (Leaf "I")) tbl = 
+                do newA <- subIdentityExpr a tbl
+                   (Matrix n m _) <- treeMatrix newA tbl
+                   return $ Branch2 op newA (IdentityLeaf (idshape2 op True n m))
+subIdentityExpr (Branch2 op (Leaf "I") b) tbl = 
+                do newB <- subIdentityExpr b tbl
+                   (Matrix n m _) <- treeMatrix newB tbl
+                   return $ Branch2 op (IdentityLeaf (idshape2 op False n m)) newB
+subIdentityExpr (Branch2 op a b) tbl = do newA <- subIdentityExpr a tbl
+                                          newB <- subIdentityExpr b tbl
+                                          return $ Branch2 op newA newB
+subIdentityExpr (Branch3 _ _ _ _) _ = throwError $ AnalysisError "encountered a ternop while parsing identity matrices, but the parser should never produce ternops!"
+
+subIdentity :: Program -> SymbolTable -> ThrowsError Program
+subIdentity prgm tbl = mapProgram prgm tbl subIdentityExpr
+
+
+
+------------------------------------------------------------
+
+-- convenience function: given a program, initial symbol table, and an function that transforms expressions, 
+--                       apply that function to all expressions in the program.
+--                       TODO: figure out how to do this as a proper functor. 
+mapProgram :: Program -> SymbolTable -> (Expr -> SymbolTable -> ThrowsError Expr) -> ThrowsError Program
+mapProgram (Seq ((Assign v e tmp):xs)) tbl exprTransform =  --
+           do newE <- exprTransform e tbl
+              newStmt <- return $ Assign v newE tmp
+              newtbl <- checkTypesStmt newStmt tbl
+              (Seq rest) <- mapProgram (Seq xs) newtbl exprTransform
+              return $ Seq (newStmt:rest)
+mapProgram prgm _ _ =  return prgm
+
 ------------------------------------------------------------
 
 checkTypes :: Program -> SymbolTable -> ThrowsError SymbolTable

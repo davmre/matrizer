@@ -1,0 +1,12 @@
+# test basic inference of identity matrix size
+
+X: n x d
+Y: n x n
+
+n ~ 100
+d ~ 5
+
+A = X * I;
+B = I * X;
+C = I + Y;
+D = Y + I;

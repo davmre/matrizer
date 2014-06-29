@@ -62,11 +62,18 @@ zipperToTree (n, _) = n
 -----------------------------------------------------------------
 -- Main optimizer logic
 
-optimizePrgm :: Program -> SymbolTable -> ThrowsError (Int, Program)
-optimizePrgm prgm tbl = let smap = buildGlobalSubExpressionMap prgm
-                            subexprs = commonSubExpressions smap
-                            (newPrgm, newTbl) = foldl factorSubExpression (prgm, tbl) subexprs in
-                        optimizePrgmLocal newPrgm newTbl
+-- optimizePrgm :: Program -> SymbolTable -> ThrowsError (Int, Program)
+-- optimizePrgm prgm tbl = do (_, firstpass) <- optimizePrgmPass prgm tbl
+--                           newTbl <- checkTypes firstpass tbl
+--                           optimizePrgmPass firstpass newTbl
+
+optimizePrgm = optimizePrgmPass
+
+optimizePrgmPass :: Program -> SymbolTable -> ThrowsError (Int, Program)
+optimizePrgmPass prgm tbl = let smap = buildGlobalSubExpressionMap prgm
+                                subexprs = commonSubExpressions smap
+                                (newPrgm, newTbl) = foldl factorSubExpression (prgm, tbl) subexprs in
+                                          optimizePrgmLocal newPrgm newTbl
 
 optimizePrgmLocal :: Program -> SymbolTable -> ThrowsError (Int, Program)
 optimizePrgmLocal (Seq x) tbl = do pairs <- mapM optimizeStmt x
@@ -106,6 +113,7 @@ buildSubexpressionMap smap stmt z@( n@(Branch3 _ _ _ _), bs) =
                           rightMap = maybe centerMap (buildSubexpressionMap centerMap stmt) (goRight z) in
                       MultiMap.insert n (stmt, bs) rightMap 
 buildSubexpressionMap smap _ (Leaf _ , _) = smap
+buildSubexpressionMap smap _ (IdentityLeaf _ , _) = smap
 
 
 -- given a character specifying a given statement, remove all of those expressions from the map
@@ -224,6 +232,7 @@ optimizeHelper tbl (t:ts) exprSet = let generatedExprs = Set.fromList $ optimize
 -- reconstructTree.
 optimizerTraversal :: SymbolTable -> MZipper -> [Expr]
 optimizerTraversal _ (Leaf _, _) = []
+optimizerTraversal _ (IdentityLeaf _, _) = []
 optimizerTraversal tbl z@( n@(Branch3 _ _ _ _), _) =
         (map (reconstructTree z) (optimizeAtNode tbl n) ) ++
         (maybe [] id (fmap (optimizerTraversal tbl) (goLeft z) )) ++
@@ -302,6 +311,8 @@ binopProductRules = [assocMult
                     , mergeToTernaryProduct
                     , factorInverse
                     , factorTranspose
+                    , mergeInverse
+                    , killIdentity
                     ]
 
 ternProductRules :: Rules
@@ -350,6 +361,26 @@ invToLinsolve tbl (Branch2 MProduct (Branch1 MInverse l) r) =
                 then Just (Branch2 MCholSolve l r)
                 else Just (Branch2 MLinSolve l r)
 invToLinsolve _ _ = Nothing
+
+mergeInverse :: Rule
+mergeInverse tbl (Branch2 MProduct (Branch1 MInverse l) r) = 
+             let Right (Matrix n _ _) = treeMatrix l tbl in
+                 if (l == r) 
+                    then Just (IdentityLeaf n)
+                    else Nothing
+mergeInverse tbl (Branch2 MProduct l (Branch1 MInverse r)) = 
+             let Right (Matrix n _ _) = treeMatrix l tbl in
+                 if (l == r) 
+                    then Just (IdentityLeaf n)
+                    else Nothing
+mergeInverse _ _ = Nothing
+
+
+killIdentity :: Rule
+killIdentity _ (Branch2 MProduct (IdentityLeaf _) r) = Just r
+killIdentity _ (Branch2 MProduct l (IdentityLeaf _)) = Just l
+killIdentity _ _ = Nothing
+                  
 
 mergeToTernaryProduct :: Rule
 mergeToTernaryProduct _ (Branch2 MProduct (Branch2 MProduct l c) r) =

@@ -21,10 +21,11 @@ fakePrgm :: Program
 fakePrgm = Seq (Assign "B" (Branch2 MProduct (Leaf "A") (IdentityLeaf 1000)) False : [])
 
 dumpInfo :: SymbolTable -> Program -> ThrowsError String
-dumpInfo tbl prgm = do fintbl <- checkTypes prgm tbl
-                       flops <- programFLOPs prgm fintbl
-                       (optFlops, optPrgm) <- optimizePrgm prgm fintbl
-                       return $ "Preamble symbol table: " ++ show tbl ++ "\nCode parsed as:\n" ++ show prgm ++ "\nInferred symbol table: " ++ show fintbl ++ "\nNaive FLOPs required: " ++ show flops ++ "\nNaive code generated:\n" ++ generateNumpy prgm ++ "\n\nOptimized flops required: " ++ show optFlops ++ "\nOptimized program:\n" ++ show optPrgm ++ "\nOptimized code generated:\n" ++ generateNumpy optPrgm
+dumpInfo tbl raw_prgm = do prgm <- subIdentity raw_prgm tbl
+                           fintbl <- checkTypes prgm tbl
+                           flops <- programFLOPs prgm fintbl
+                           (optFlops, optPrgm) <- optimizePrgm prgm fintbl
+                           return $ "Preamble symbol table: " ++ show tbl ++ "\nCode parsed as:\n" ++ show prgm ++ "\nInferred symbol table: " ++ show fintbl ++ "\nNaive FLOPs required: " ++ show flops ++ "\nNaive code generated:\n" ++ generateNumpy prgm ++ "\n\nOptimized flops required: " ++ show optFlops ++ "\nOptimized program:\n" ++ show optPrgm ++ "\nOptimized code generated:\n" ++ generateNumpy optPrgm
 
 errorStr :: ThrowsError String -> String
 errorStr ts = case ts of 
