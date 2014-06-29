@@ -24,7 +24,9 @@ dumpInfo :: SymbolTable -> Program -> ThrowsError String
 dumpInfo tbl raw_prgm = do prgm <- subIdentity raw_prgm tbl
                            fintbl <- checkTypes prgm tbl
                            flops <- programFLOPs prgm fintbl
-                           (optFlops, optPrgm) <- optimizePrgm prgm fintbl
+                           optPrgm <- optimizePrgm prgm fintbl
+                           optTbl <- checkTypes optPrgm tbl
+                           optFlops <- programFLOPs optPrgm optTbl
                            return $ "Preamble symbol table: " ++ show tbl ++ "\nCode parsed as:\n" ++ show prgm ++ "\nInferred symbol table: " ++ show fintbl ++ "\nNaive FLOPs required: " ++ show flops ++ "\nNaive code generated:\n" ++ generateNumpy prgm ++ "\n\nOptimized flops required: " ++ show optFlops ++ "\nOptimized program:\n" ++ show optPrgm ++ "\nOptimized code generated:\n" ++ generateNumpy optPrgm
 
 errorStr :: ThrowsError String -> String

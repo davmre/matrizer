@@ -67,13 +67,18 @@ zipperToTree (n, _) = n
 --                           newTbl <- checkTypes firstpass tbl
 --                           optimizePrgmPass firstpass newTbl
 
-optimizePrgm = optimizePrgmPass
+optimizePrgm :: Program -> SymbolTable -> ThrowsError Program
+optimizePrgm p t = do (p1, t1) <- return $ commonSubExpressionPass p t
+                      (_, p1opt) <- optimizePrgmLocal p1 t1
+                      p1clean <- return $ cleanTmp p1opt                      
+                      (p2, t2) <- return $ commonSubExpressionPass p1clean t1
+                      (_, p2opt) <- optimizePrgmLocal p2 t2
+                      return $ cleanTmp p2opt
 
-optimizePrgmPass :: Program -> SymbolTable -> ThrowsError (Int, Program)
-optimizePrgmPass prgm tbl = let smap = buildGlobalSubExpressionMap prgm
-                                subexprs = commonSubExpressions smap
-                                (newPrgm, newTbl) = foldl factorSubExpression (prgm, tbl) subexprs in
-                                          optimizePrgmLocal newPrgm newTbl
+commonSubExpressionPass :: Program -> SymbolTable -> (Program, SymbolTable)
+commonSubExpressionPass prgm tbl = let smap = buildGlobalSubExpressionMap prgm
+                                       subexprs = commonSubExpressions smap in
+                                   foldl factorSubExpression (prgm, tbl) subexprs
 
 optimizePrgmLocal :: Program -> SymbolTable -> ThrowsError (Int, Program)
 optimizePrgmLocal (Seq x) tbl = do pairs <- mapM optimizeStmt x
@@ -84,6 +89,43 @@ optimizePrgmLocal (Seq x) tbl = do pairs <- mapM optimizeStmt x
                                                                    return $ (flops, Assign v eopt tmp)
 
 ----------------------------------------------------------------
+
+-- clean up tmp variables:
+--  - first split the program into lists of tmp and non-tmp statements
+--  - for each non-tmp statement, make a list of all the 
+
+variablesUsed :: Expr -> [VarName] -> [VarName]
+variablesUsed (Leaf a) vs = a:vs
+variablesUsed (IdentityLeaf _ ) vs = vs 
+variablesUsed (Branch1 _ a ) vs = variablesUsed a vs
+variablesUsed (Branch2 _ a b) vs = variablesUsed b (variablesUsed a vs)
+variablesUsed (Branch3 _ a b c) vs = variablesUsed c (variablesUsed b (variablesUsed a vs))
+
+allVariablesUsed :: Program  -> [VarName]
+allVariablesUsed (Seq ((Assign _ e _):xs)) = variablesUsed e (allVariablesUsed (Seq xs))
+allVariablesUsed _ = []
+
+cleanTmp :: Program -> Program
+cleanTmp prgm = let vs = allVariablesUsed prgm 
+                    (Seq stmts) = prgm in
+                    Seq $ removeUnused stmts vs
+                where 
+                removeUnused (x@(Assign v _ True):xs) used = if v `elem` used
+                                                                   then x : (removeUnused xs used)
+                                                                   else removeUnused xs used
+                removeUnused (x:xs) used = x : (removeUnused xs used)
+                removeUnused stmts _  = stmts
+                    
+
+-- replaceVar :: Expr -> VarName -> Expr -> Expr
+--replaceVar v sube (Leaf a)  = if a == v
+--                             then sube
+--                             else e
+--replaceVar v sube (Branch1 op a) = Branch1 op (replaceVar a v sube)
+--replaceVar v sube (Branch2 op a b) = Branch2 op (replaceVar a v sube) (replaceVar b v sube)
+--replaceVar v sube (Branch3 op a b c) = Branch3 op (replaceVar a v sube) (replaceVar b v sube) (replaceVar c v sube)
+
+---------------------------------------------------------------
 
 -- common subexpression elimination code
 type SubExprLoc = (VarName, Breadcrumbs)
@@ -113,7 +155,7 @@ buildSubexpressionMap smap stmt z@( n@(Branch3 _ _ _ _), bs) =
                           rightMap = maybe centerMap (buildSubexpressionMap centerMap stmt) (goRight z) in
                       MultiMap.insert n (stmt, bs) rightMap 
 buildSubexpressionMap smap _ (Leaf _ , _) = smap
-buildSubexpressionMap smap _ (IdentityLeaf _ , _) = smap
+buildSubexpressionMap smap stmt (n@(IdentityLeaf _), bs) = MultiMap.insert n (stmt, bs) smap
 
 
 -- given a character specifying a given statement, remove all of those expressions from the map
@@ -137,16 +179,29 @@ commonSubExpressions smap = let l = Map.toList $ MultiMap.toMap smap
 -- that subexpression into its own statement.
 factorSubExpression :: (Program, SymbolTable) -> (Expr, [SubExprLoc]) -> (Program, SymbolTable)
 factorSubExpression ((Seq stmts), tbl) (e, locs) = 
-    let newVar = getNewVar tbl
-        (Right newMatrix) = (treeMatrix e tbl)
-        newTbl = Map.insert newVar newMatrix tbl
-        newStmts = subAll stmts newVar locs
-        newIdx = minimum $ catMaybes $ map (stmtPos newStmts) (fst $ unzip locs)
-        (p,ps) = splitAt newIdx newStmts in
-    (Seq $ p ++ (Assign newVar e True):ps, newTbl)
-    where
-    getNewVar oldTbl = maybe "tmp11" id (find ((flip Map.notMember) oldTbl) ["tmp1", "tmp2", "tmp3", "tmp4", "tmp5", "tmp6", "tmp7", "tmp8", "tmp9", "tmp10"])
-    stmtPos stmtList v = findIndex (\(Assign vv _ _) -> (vv == v)) stmtList
+    let currentVarMatch = find (\(v, bs) -> null bs) locs in
+    subCurrentVar ((Seq stmts), tbl) (e, locs) currentVarMatch
+
+-- deal with two cases: either we already have a variable assigned to 
+-- the subexpression in question, or we need to create a new tmp variable.
+-- this is a bit of a hack and should probably be incorporated under factorSubExpression
+subCurrentVar ((Seq stmts), tbl) (e, locs) (Just (v, bs)) = 
+              let (Just idx) = stmtPos stmts v
+                  (p, ps) = splitAt (idx + 1) stmts in
+              (Seq $ p ++ subAll ps v locs, tbl)
+subCurrentVar ((Seq stmts), tbl) (e, locs) Nothing = 
+              let newVar = getNewVar tbl
+                  (Right newMatrix) = (treeMatrix e tbl)
+                  newTbl = Map.insert newVar newMatrix tbl
+                  newStmts = subAll stmts newVar locs
+                  newIdx = minimum $ catMaybes $ map (stmtPos newStmts) (fst $ unzip locs)
+                  (p,ps) = splitAt newIdx newStmts in
+              (Seq $ p ++ (Assign newVar e True):ps, newTbl)
+              where
+              getNewVar oldTbl = maybe "tmp11" id (find ((flip Map.notMember) oldTbl) ["tmp1", "tmp2", "tmp3", "tmp4", "tmp5", "tmp6", "tmp7", "tmp8", "tmp9", "tmp10"])
+
+stmtPos stmtList v = findIndex (\(Assign vv _ _) -> (vv == v)) stmtList
+
 
 
 -- given a list of locations where a particular subexpression occurs,
