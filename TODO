@@ -1,6 +1,4 @@
 - Special-case the identity matrix
-- Assignment operator to allow temporary variables (and corresponding
-  optimization of common subexpressions)
 - Scalars
 - Sparse matrices
 - Blocked or block-diagonal matrices
