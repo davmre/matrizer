@@ -1,0 +1,10 @@
+# test cancellation of identity matrices
+
+X: n x n
+
+n ~ 100
+
+A = X*I;
+B = I*X;
+C = (X + I) * A;
+D = A * (X+I);
