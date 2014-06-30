@@ -10,6 +10,8 @@ import Data.List
 import MTypes
 import Analysis
 
+import Debug.Trace
+
 --------------------------------------------------------------------------------------------------------
 -- Zipper definitions for the Expr structure (see http://learnyouahaskell.com/zippers)
 
@@ -70,7 +72,7 @@ zipperToTree (n, _) = n
 optimizePrgm :: Program -> SymbolTable -> ThrowsError Program
 optimizePrgm p t = do (p1, t1) <- return $ commonSubExpressionPass p t
                       (_, p1opt) <- optimizePrgmLocal p1 t1
-                      p1clean <- return $ cleanTmp p1opt                      
+                      p1clean <- return $ cleanTmp p1opt
                       (p2, t2) <- return $ commonSubExpressionPass p1clean t1
                       (_, p2opt) <- optimizePrgmLocal p2 t2
                       return $ cleanTmp p2opt
@@ -92,11 +94,11 @@ optimizePrgmLocal (Seq x) tbl = do pairs <- mapM optimizeStmt x
 
 -- clean up tmp variables:
 --  - first split the program into lists of tmp and non-tmp statements
---  - for each non-tmp statement, make a list of all the 
+--  - for each non-tmp statement, make a list of all the
 
 variablesUsed :: Expr -> [VarName] -> [VarName]
 variablesUsed (Leaf a) vs = a:vs
-variablesUsed (IdentityLeaf _ ) vs = vs 
+variablesUsed (IdentityLeaf _ ) vs = vs
 variablesUsed (Branch1 _ a ) vs = variablesUsed a vs
 variablesUsed (Branch2 _ a b) vs = variablesUsed b (variablesUsed a vs)
 variablesUsed (Branch3 _ a b c) vs = variablesUsed c (variablesUsed b (variablesUsed a vs))
@@ -106,16 +108,16 @@ allVariablesUsed (Seq ((Assign _ e _):xs)) = variablesUsed e (allVariablesUsed (
 allVariablesUsed _ = []
 
 cleanTmp :: Program -> Program
-cleanTmp prgm = let vs = allVariablesUsed prgm 
+cleanTmp prgm = let vs = allVariablesUsed prgm
                     (Seq stmts) = prgm in
                     Seq $ removeUnused stmts vs
-                where 
+                where
                 removeUnused (x@(Assign v _ True):xs) used = if v `elem` used
                                                                    then x : (removeUnused xs used)
                                                                    else removeUnused xs used
                 removeUnused (x:xs) used = x : (removeUnused xs used)
                 removeUnused stmts _  = stmts
-                    
+
 
 -- replaceVar :: Expr -> VarName -> Expr -> Expr
 --replaceVar v sube (Leaf a)  = if a == v
@@ -142,18 +144,18 @@ buildGlobalSubExpressionMap (Seq xs) = mergeMultiMaps (map buildStmtMap xs) wher
 
 -- build a subexpression map for a given expression
 buildSubexpressionMap :: SubExprMap -> VarName -> MZipper -> SubExprMap
-buildSubexpressionMap smap stmt z@( n@(Branch1 _ _), bs) = 
+buildSubexpressionMap smap stmt z@( n@(Branch1 _ _), bs) =
                       let childMap = maybe smap (buildSubexpressionMap smap stmt) (goDown z) in
-                      MultiMap.insert n (stmt, bs) childMap 
-buildSubexpressionMap smap stmt z@( n@(Branch2 _ _ _), bs) = 
+                      MultiMap.insert n (stmt, bs) childMap
+buildSubexpressionMap smap stmt z@( n@(Branch2 _ _ _), bs) =
                       let leftMap = maybe smap (buildSubexpressionMap smap stmt) (goLeft z)
                           rightMap = maybe leftMap (buildSubexpressionMap leftMap stmt) (goRight z) in
-                      MultiMap.insert n (stmt, bs) rightMap 
-buildSubexpressionMap smap stmt z@( n@(Branch3 _ _ _ _), bs) = 
+                      MultiMap.insert n (stmt, bs) rightMap
+buildSubexpressionMap smap stmt z@( n@(Branch3 _ _ _ _), bs) =
                       let leftMap = maybe smap (buildSubexpressionMap smap stmt) (goLeft z)
                           centerMap = maybe leftMap (buildSubexpressionMap leftMap stmt) (goDown z)
                           rightMap = maybe centerMap (buildSubexpressionMap centerMap stmt) (goRight z) in
-                      MultiMap.insert n (stmt, bs) rightMap 
+                      MultiMap.insert n (stmt, bs) rightMap
 buildSubexpressionMap smap _ (Leaf _ , _) = smap
 buildSubexpressionMap smap stmt (n@(IdentityLeaf _), bs) = MultiMap.insert n (stmt, bs) smap
 
@@ -178,18 +180,18 @@ commonSubExpressions smap = let l = Map.toList $ MultiMap.toMap smap
 -- given a subexpression, return the program transformed to factor out
 -- that subexpression into its own statement.
 factorSubExpression :: (Program, SymbolTable) -> (Expr, [SubExprLoc]) -> (Program, SymbolTable)
-factorSubExpression ((Seq stmts), tbl) (e, locs) = 
+factorSubExpression ((Seq stmts), tbl) (e, locs) =
     let currentVarMatch = find (\(v, bs) -> null bs) locs in
     subCurrentVar ((Seq stmts), tbl) (e, locs) currentVarMatch
 
--- deal with two cases: either we already have a variable assigned to 
+-- deal with two cases: either we already have a variable assigned to
 -- the subexpression in question, or we need to create a new tmp variable.
 -- this is a bit of a hack and should probably be incorporated under factorSubExpression
-subCurrentVar ((Seq stmts), tbl) (e, locs) (Just (v, bs)) = 
+subCurrentVar ((Seq stmts), tbl) (e, locs) (Just (v, bs)) =
               let (Just idx) = stmtPos stmts v
                   (p, ps) = splitAt (idx + 1) stmts in
               (Seq $ p ++ subAll ps v locs, tbl)
-subCurrentVar ((Seq stmts), tbl) (e, locs) Nothing = 
+subCurrentVar ((Seq stmts), tbl) (e, locs) Nothing =
               let newVar = getNewVar tbl
                   (Right newMatrix) = (treeMatrix e tbl)
                   newTbl = Map.insert newVar newMatrix tbl
@@ -215,8 +217,8 @@ replaceSubExpInPrgm :: [Stmt] -> VarName -> SubExprLoc -> [Stmt]
 replaceSubExpInPrgm stmts newVar (vv, bs) = map (replaceSubExp newVar (vv, bs)) stmts
 
 replaceSubExp :: VarName -> SubExprLoc -> Stmt -> Stmt
-replaceSubExp newVar (vv, bs) (Assign v e tmp)  = 
-              if (v /= vv) 
+replaceSubExp newVar (vv, bs) (Assign v e tmp)  =
+              if (v /= vv)
               then Assign v e tmp
               else let newZipper = recreateZipper (reverse bs) (Just (e, [])) in
               case newZipper of
@@ -226,7 +228,7 @@ replaceSubExp newVar (vv, bs) (Assign v e tmp)  =
 -- Given a set of breadcrumbs pointing to some location in an old expression tree,
 -- and a zipper initialized to the root of a new expression tree,
 -- return the zipper pointing to the corresponding location in the new
--- tree. 
+-- tree.
 -- Note that the breadcrumbs need to be in the reverse order of a
 -- standard zipper, i.e. they need to give directions from the top
 -- down, rather than the bottom up. Currently I solve this by just
@@ -242,7 +244,7 @@ recreateZipper (LeftCrumb _ _:bs) (Just z) = recreateZipper bs (goLeft z)
 recreateZipper ((RightCrumb _ _):bs) (Just z) = recreateZipper bs (goRight z)
 recreateZipper ((SingleCrumb _):bs) (Just z) = recreateZipper bs (goDown z)
 recreateZipper ((TernCrumb _ _ _):bs) (Just z) = recreateZipper bs (goDown z)
-recreateZipper [] z = z 
+recreateZipper [] z = z
 recreateZipper _ Nothing = Nothing
 
 ----------------------------------------------------------------
@@ -277,6 +279,7 @@ optimizeHelper :: SymbolTable -> [Expr] -> TabuSet -> ([Expr], TabuSet)
 optimizeHelper _ [] exprSet = ([], exprSet)
 optimizeHelper tbl (t:ts) exprSet = let generatedExprs = Set.fromList $ optimizerTraversal tbl (t, [])
                                         novelExprs = Set.difference generatedExprs exprSet in
+                                    -- trace ("oH " ++ (show generatedExprs) ++ (show novelExprs) ++ (show exprSet)) $
                                     optimizeHelper tbl ( ts ++ (Set.toList novelExprs) ) (Set.union exprSet novelExprs)
 
 -- Given a zipper corresponding to a position (node) in a tree, return
@@ -358,6 +361,7 @@ type Rules = [Rule]
 binopSumRules :: Rules
 binopSumRules = [commonFactorLeft
                 , commonFactorRight
+--                , matrixInvLemmaRight
                 ]
 
 binopProductRules :: Rules
@@ -378,7 +382,8 @@ ternProductRules = [splitTernaryProductLeftAssoc
 inverseRules :: Rules
 inverseRules = [distributeInverse
                , swapInverseTranspose
-               , cancelDoubleInverse
+               , cancelDoubleInverse,
+                 matrixInvLemmaLeft
                ]
 
 transposeRules :: Rules
@@ -418,14 +423,14 @@ invToLinsolve tbl (Branch2 MProduct (Branch1 MInverse l) r) =
 invToLinsolve _ _ = Nothing
 
 mergeInverse :: Rule
-mergeInverse tbl (Branch2 MProduct (Branch1 MInverse l) r) = 
+mergeInverse tbl (Branch2 MProduct (Branch1 MInverse l) r) =
              let Right (Matrix n _ _) = treeMatrix l tbl in
-                 if (l == r) 
+                 if (l == r)
                     then Just (IdentityLeaf n)
                     else Nothing
-mergeInverse tbl (Branch2 MProduct l (Branch1 MInverse r)) = 
+mergeInverse tbl (Branch2 MProduct l (Branch1 MInverse r)) =
              let Right (Matrix n _ _) = treeMatrix l tbl in
-                 if (l == r) 
+                 if (l == r)
                     then Just (IdentityLeaf n)
                     else Nothing
 mergeInverse _ _ = Nothing
@@ -435,7 +440,7 @@ killIdentity :: Rule
 killIdentity _ (Branch2 MProduct (IdentityLeaf _) r) = Just r
 killIdentity _ (Branch2 MProduct l (IdentityLeaf _)) = Just l
 killIdentity _ _ = Nothing
-                  
+
 
 mergeToTernaryProduct :: Rule
 mergeToTernaryProduct _ (Branch2 MProduct (Branch2 MProduct l c) r) =
@@ -493,3 +498,16 @@ swapTransposeInverse :: Rule
 swapTransposeInverse _ (Branch1 MTranspose (Branch1 MInverse t)) =
         Just (Branch1 MInverse (Branch1 MTranspose t))
 swapTransposeInverse _ _ = Nothing
+
+matrixInvLemmaLeft :: Rule
+matrixInvLemmaLeft _ (Branch1 MInverse (Branch2 MSum a (Branch3 MTernaryProduct u c v))) =
+  Just (Branch2 MSum (Branch1 MInverse a) (Branch1 MNegate (Branch3 MTernaryProduct (Branch2 MProduct (Branch1 MInverse a) u ) ( Branch2 MSum (Branch1 MInverse c) (Branch3 MTernaryProduct v (Branch1 MInverse a) u) ) (Branch2 MProduct v (Branch1 MInverse a)) )))
+matrixInvLemmaLeft _ _ = Nothing
+
+-- matrixInvLemmaRight :: Rule
+--matrixInvLemmaRight tbl (Branch2 MSum (Branch1 MInverse A) (Branch1 MNegate (Branch3 MTernaryProduct (Branch2 MProduct (Branch1 MInverse B) C ) ( Branch2 MSum (Branch1 MInverse D) (Branch3 MTernaryProduct E (Branch1 MInverse F) G) ) (Branch2 MProduct H (Branch1 MInverse I)) ))) =if (A == B && A == F && A == I)&& (C == G)&& (D == H)
+-- matrixInvLemmaRight _ (Branch2 MSum ainv (Branch1 MNegate (Branch3 MTernaryProduct (Branch2 MProduct ainv2 u ) ( Branch2 MSum cinv (Branch3 MTernaryProduct v ainv3 u2) ) (Branch2 MProduct v2 ainv4) ))) =
+--   if (ainv == ainv2 && ainv == ainv3 && ainv == ainv4)&& (u == u2)&& (v == v2)
+--  then Just (Branch1 MInverse (Branch2 MSum (Branch1 MInverse ainv) (Branch3 MTernaryProduct u (Branch1 MInverse cinv) v)))
+--  else Nothing
+-- matrixInvLemmaRight _ _ = Nothing

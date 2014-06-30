@@ -1,0 +1,12 @@
+# normal equations for linear regression
+
+A : n x n
+C : m x m
+U : n x m
+V : m x n
+
+
+n ~ 1000
+m ~ 10
+
+D = (A^-1 + U * C * V)^-1
