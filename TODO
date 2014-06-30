@@ -1,4 +1,3 @@
-- Special-case the identity matrix
 - Scalars
 - Sparse matrices
 - Blocked or block-diagonal matrices
@@ -22,5 +21,5 @@
 	- singular / invertible
 - Explicit consideration of numeric stability (currently we just
   assume that fewer FLOPs is better). Give each matrix a condition
-  number, then calculate stability of the resulting expression. 
+  number, then calculate stability of the resulting expression.
 - Web interface for easy public use
