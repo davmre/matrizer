@@ -3,20 +3,20 @@ matrizer
 
 To build:
 
-runhaskell Setup.hs configure
-runhaskell Setup.hs build
+    runhaskell Setup.hs configure
+    runhaskell Setup.hs build
 
 If cabal complains about being unable to find a dependency that you
 know is installed, it might be in your user package db. Try running
 
-runhaskell Setup.hs --user configure
+    runhaskell Setup.hs --user configure
 
 instead. For other common issues with cabal, see
 http://www.haskell.org/cabal/FAQ.html.
 
 Try running an example:
 
-dist/build/matrizer/matrizer examples/normaleqns.mtr
+    dist/build/matrizer/matrizer examples/normaleqns.mtr
 
 This should output:
 
