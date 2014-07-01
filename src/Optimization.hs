@@ -380,6 +380,7 @@ inverseRules = [distributeInverse
                , swapInverseTranspose
                , cancelDoubleInverse
                , invariantIdentity
+               , invToCholInv
                ]
 
 transposeRules :: Rules
@@ -414,9 +415,18 @@ invToLinsolve :: Rule
 invToLinsolve tbl (Branch2 MProduct (Branch1 MInverse l) r) =
         let Right (Matrix _ _ props) = treeMatrix l tbl in
             if PosDef `elem` props
-                then Just (Branch2 MCholSolve l r)
+                then Just (Branch2 MCholSolve (Branch1 MChol l) r)
                 else Just (Branch2 MLinSolve l r)
 invToLinsolve _ _ = Nothing
+
+-- HACK to apply Cholesky decomposition to the inverses of leaf nodes.
+invToCholInv :: Rule
+invToCholInv tbl (Branch1 MInverse l@(Leaf _)) =
+        let Right (Matrix _ _ props) = treeMatrix l tbl in
+            if PosDef `elem` props
+               then Just (Branch1 MInverse (Branch2 MProduct (Branch1 MChol l) (Branch1 MTranspose (Branch1 MChol l) )))
+               else Nothing
+invToCholInv _ _ = Nothing
 
 mergeInverse :: Rule
 mergeInverse tbl (Branch2 MProduct (Branch1 MInverse l) r) =
