@@ -1,5 +1,3 @@
-# normal equations for linear regression
-
 A : n x n
 C : m x m
 U : n x m
