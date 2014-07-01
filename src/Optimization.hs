@@ -70,7 +70,7 @@ zipperToTree (n, _) = n
 optimizePrgm :: Program -> SymbolTable -> ThrowsError Program
 optimizePrgm p t = do (p1, t1) <- return $ commonSubExpressionPass p t
                       (_, p1opt) <- optimizePrgmLocal p1 t1
-                      p1clean <- return $ cleanTmp p1opt                      
+                      p1clean <- return $ cleanTmp p1opt
                       (p2, t2) <- return $ commonSubExpressionPass p1clean t1
                       (_, p2opt) <- optimizePrgmLocal p2 t2
                       return $ cleanTmp p2opt
@@ -92,11 +92,11 @@ optimizePrgmLocal (Seq x) tbl = do pairs <- mapM optimizeStmt x
 
 -- clean up tmp variables:
 --  - first split the program into lists of tmp and non-tmp statements
---  - for each non-tmp statement, make a list of all the 
+--  - for each non-tmp statement, make a list of all the
 
 variablesUsed :: Expr -> [VarName] -> [VarName]
 variablesUsed (Leaf a) vs = a:vs
-variablesUsed (IdentityLeaf _ ) vs = vs 
+variablesUsed (IdentityLeaf _ ) vs = vs
 variablesUsed (Branch1 _ a ) vs = variablesUsed a vs
 variablesUsed (Branch2 _ a b) vs = variablesUsed b (variablesUsed a vs)
 variablesUsed (Branch3 _ a b c) vs = variablesUsed c (variablesUsed b (variablesUsed a vs))
@@ -106,16 +106,16 @@ allVariablesUsed (Seq ((Assign _ e _):xs)) = variablesUsed e (allVariablesUsed (
 allVariablesUsed _ = []
 
 cleanTmp :: Program -> Program
-cleanTmp prgm = let vs = allVariablesUsed prgm 
+cleanTmp prgm = let vs = allVariablesUsed prgm
                     (Seq stmts) = prgm in
                     Seq $ removeUnused stmts vs
-                where 
+                where
                 removeUnused (x@(Assign v _ True):xs) used = if v `elem` used
                                                                    then x : (removeUnused xs used)
                                                                    else removeUnused xs used
                 removeUnused (x:xs) used = x : (removeUnused xs used)
                 removeUnused stmts _  = stmts
-                    
+
 
 -- replaceVar :: Expr -> VarName -> Expr -> Expr
 --replaceVar v sube (Leaf a)  = if a == v
@@ -142,18 +142,18 @@ buildGlobalSubExpressionMap (Seq xs) = mergeMultiMaps (map buildStmtMap xs) wher
 
 -- build a subexpression map for a given expression
 buildSubexpressionMap :: SubExprMap -> VarName -> MZipper -> SubExprMap
-buildSubexpressionMap smap stmt z@( n@(Branch1 _ _), bs) = 
+buildSubexpressionMap smap stmt z@( n@(Branch1 _ _), bs) =
                       let childMap = maybe smap (buildSubexpressionMap smap stmt) (goDown z) in
-                      MultiMap.insert n (stmt, bs) childMap 
-buildSubexpressionMap smap stmt z@( n@(Branch2 _ _ _), bs) = 
+                      MultiMap.insert n (stmt, bs) childMap
+buildSubexpressionMap smap stmt z@( n@(Branch2 _ _ _), bs) =
                       let leftMap = maybe smap (buildSubexpressionMap smap stmt) (goLeft z)
                           rightMap = maybe leftMap (buildSubexpressionMap leftMap stmt) (goRight z) in
-                      MultiMap.insert n (stmt, bs) rightMap 
-buildSubexpressionMap smap stmt z@( n@(Branch3 _ _ _ _), bs) = 
+                      MultiMap.insert n (stmt, bs) rightMap
+buildSubexpressionMap smap stmt z@( n@(Branch3 _ _ _ _), bs) =
                       let leftMap = maybe smap (buildSubexpressionMap smap stmt) (goLeft z)
                           centerMap = maybe leftMap (buildSubexpressionMap leftMap stmt) (goDown z)
                           rightMap = maybe centerMap (buildSubexpressionMap centerMap stmt) (goRight z) in
-                      MultiMap.insert n (stmt, bs) rightMap 
+                      MultiMap.insert n (stmt, bs) rightMap
 buildSubexpressionMap smap _ (Leaf _ , _) = smap
 buildSubexpressionMap smap stmt (n@(IdentityLeaf _), bs) = MultiMap.insert n (stmt, bs) smap
 
@@ -178,18 +178,18 @@ commonSubExpressions smap = let l = Map.toList $ MultiMap.toMap smap
 -- given a subexpression, return the program transformed to factor out
 -- that subexpression into its own statement.
 factorSubExpression :: (Program, SymbolTable) -> (Expr, [SubExprLoc]) -> (Program, SymbolTable)
-factorSubExpression ((Seq stmts), tbl) (e, locs) = 
+factorSubExpression ((Seq stmts), tbl) (e, locs) =
     let currentVarMatch = find (\(v, bs) -> null bs) locs in
     subCurrentVar ((Seq stmts), tbl) (e, locs) currentVarMatch
 
--- deal with two cases: either we already have a variable assigned to 
+-- deal with two cases: either we already have a variable assigned to
 -- the subexpression in question, or we need to create a new tmp variable.
 -- this is a bit of a hack and should probably be incorporated under factorSubExpression
-subCurrentVar ((Seq stmts), tbl) (e, locs) (Just (v, bs)) = 
+subCurrentVar ((Seq stmts), tbl) (e, locs) (Just (v, bs)) =
               let (Just idx) = stmtPos stmts v
                   (p, ps) = splitAt (idx + 1) stmts in
               (Seq $ p ++ subAll ps v locs, tbl)
-subCurrentVar ((Seq stmts), tbl) (e, locs) Nothing = 
+subCurrentVar ((Seq stmts), tbl) (e, locs) Nothing =
               let newVar = getNewVar tbl
                   (Right newMatrix) = (treeMatrix e tbl)
                   newTbl = Map.insert newVar newMatrix tbl
@@ -215,8 +215,8 @@ replaceSubExpInPrgm :: [Stmt] -> VarName -> SubExprLoc -> [Stmt]
 replaceSubExpInPrgm stmts newVar (vv, bs) = map (replaceSubExp newVar (vv, bs)) stmts
 
 replaceSubExp :: VarName -> SubExprLoc -> Stmt -> Stmt
-replaceSubExp newVar (vv, bs) (Assign v e tmp)  = 
-              if (v /= vv) 
+replaceSubExp newVar (vv, bs) (Assign v e tmp)  =
+              if (v /= vv)
               then Assign v e tmp
               else let newZipper = recreateZipper (reverse bs) (Just (e, [])) in
               case newZipper of
@@ -226,7 +226,7 @@ replaceSubExp newVar (vv, bs) (Assign v e tmp)  =
 -- Given a set of breadcrumbs pointing to some location in an old expression tree,
 -- and a zipper initialized to the root of a new expression tree,
 -- return the zipper pointing to the corresponding location in the new
--- tree. 
+-- tree.
 -- Note that the breadcrumbs need to be in the reverse order of a
 -- standard zipper, i.e. they need to give directions from the top
 -- down, rather than the bottom up. Currently I solve this by just
@@ -242,7 +242,7 @@ recreateZipper (LeftCrumb _ _:bs) (Just z) = recreateZipper bs (goLeft z)
 recreateZipper ((RightCrumb _ _):bs) (Just z) = recreateZipper bs (goRight z)
 recreateZipper ((SingleCrumb _):bs) (Just z) = recreateZipper bs (goDown z)
 recreateZipper ((TernCrumb _ _ _):bs) (Just z) = recreateZipper bs (goDown z)
-recreateZipper [] z = z 
+recreateZipper [] z = z
 recreateZipper _ Nothing = Nothing
 
 ----------------------------------------------------------------
@@ -379,6 +379,7 @@ inverseRules :: Rules
 inverseRules = [distributeInverse
                , swapInverseTranspose
                , cancelDoubleInverse
+               , invariantIdentity
                ]
 
 transposeRules :: Rules
@@ -418,14 +419,14 @@ invToLinsolve tbl (Branch2 MProduct (Branch1 MInverse l) r) =
 invToLinsolve _ _ = Nothing
 
 mergeInverse :: Rule
-mergeInverse tbl (Branch2 MProduct (Branch1 MInverse l) r) = 
+mergeInverse tbl (Branch2 MProduct (Branch1 MInverse l) r) =
              let Right (Matrix n _ _) = treeMatrix l tbl in
-                 if (l == r) 
+                 if (l == r)
                     then Just (IdentityLeaf n)
                     else Nothing
-mergeInverse tbl (Branch2 MProduct l (Branch1 MInverse r)) = 
+mergeInverse tbl (Branch2 MProduct l (Branch1 MInverse r)) =
              let Right (Matrix n _ _) = treeMatrix l tbl in
-                 if (l == r) 
+                 if (l == r)
                     then Just (IdentityLeaf n)
                     else Nothing
 mergeInverse _ _ = Nothing
@@ -435,7 +436,11 @@ killIdentity :: Rule
 killIdentity _ (Branch2 MProduct (IdentityLeaf _) r) = Just r
 killIdentity _ (Branch2 MProduct l (IdentityLeaf _)) = Just l
 killIdentity _ _ = Nothing
-                  
+
+invariantIdentity :: Rule
+invariantIdentity _ (Branch1 MInverse (IdentityLeaf n)) = Just (IdentityLeaf n)
+invariantIdentity _ (Branch1 MTranspose (IdentityLeaf n)) = Just (IdentityLeaf n)
+invariantIdentity _ _ = Nothing
 
 mergeToTernaryProduct :: Rule
 mergeToTernaryProduct _ (Branch2 MProduct (Branch2 MProduct l c) r) =

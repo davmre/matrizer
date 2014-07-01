@@ -27,10 +27,10 @@ dumpInfo tbl raw_prgm = do prgm <- subIdentity raw_prgm tbl
                            optPrgm <- optimizePrgm prgm fintbl
                            optTbl <- checkTypes optPrgm tbl
                            optFlops <- programFLOPs optPrgm optTbl
-                           return $ "Preamble symbol table: " ++ show tbl ++ "\nCode parsed as:\n" ++ show prgm ++ "\nInferred symbol table: " ++ show fintbl ++ "\nNaive FLOPs required: " ++ show flops ++ "\nNaive code generated:\n" ++ generateNumpy prgm ++ "\n\nOptimized flops required: " ++ show optFlops ++ "\nOptimized program:\n" ++ show optPrgm ++ "\nOptimized code generated:\n" ++ generateNumpy optPrgm
+                           return $ "Preamble symbol table: " ++ show tbl ++ "\nCode parsed as:\n" ++ show prgm ++ "\nInferred symbol table: " ++ show fintbl ++ "\nNaive FLOPs required: " ++ show flops ++ "\nNaive code generated:\n" ++ generateNumpy prgm ++ "\n\nOptimized FLOPs required: " ++ show optFlops ++ "\nOptimized program:\n" ++ show optPrgm ++ "\nOptimized code generated:\n" ++ generateNumpy optPrgm
 
 errorStr :: ThrowsError String -> String
-errorStr ts = case ts of 
+errorStr ts = case ts of
                Left err -> show err
                Right s -> s
 
@@ -41,4 +41,3 @@ main = do args <- getArgs
           case readInput inp of
             Left err -> print err
             Right (tbl, tree) -> putStrLn $ errorStr $ dumpInfo tbl tree
-            

@@ -7,7 +7,7 @@ import Control.Monad.Error
 import MTypes
 
 -----------------------------------------------------------------------
--- Identity special-case: replace all "I" leafs with IdentityLeafs of 
+-- Identity special-case: replace all "I" leafs with IdentityLeafs of
 -- appropriate size
 -----------------------------------------------------------------------
 
@@ -24,11 +24,11 @@ subIdentityExpr (Leaf a) _ = return $ Leaf a
 subIdentityExpr (IdentityLeaf n) _ = return $ IdentityLeaf n
 subIdentityExpr (Branch1 op a) tbl = do newA <- subIdentityExpr a tbl
                                         return $ Branch1 op newA
-subIdentityExpr (Branch2 op a (Leaf "I")) tbl = 
+subIdentityExpr (Branch2 op a (Leaf "I")) tbl =
                 do newA <- subIdentityExpr a tbl
                    (Matrix n m _) <- treeMatrix newA tbl
                    return $ Branch2 op newA (IdentityLeaf (idshape2 op True n m))
-subIdentityExpr (Branch2 op (Leaf "I") b) tbl = 
+subIdentityExpr (Branch2 op (Leaf "I") b) tbl =
                 do newB <- subIdentityExpr b tbl
                    (Matrix n m _) <- treeMatrix newB tbl
                    return $ Branch2 op (IdentityLeaf (idshape2 op False n m)) newB
@@ -44,9 +44,9 @@ subIdentity prgm tbl = mapProgram prgm tbl subIdentityExpr
 
 ------------------------------------------------------------
 
--- convenience function: given a program, initial symbol table, and an function that transforms expressions, 
+-- convenience function: given a program, initial symbol table, and an function that transforms expressions,
 --                       apply that function to all expressions in the program.
---                       TODO: figure out how to do this as a proper functor. 
+--                       TODO: figure out how to do this as a proper functor.
 mapProgram :: Program -> SymbolTable -> (Expr -> SymbolTable -> ThrowsError Expr) -> ThrowsError Program
 mapProgram (Seq ((Assign v e tmp):xs)) tbl exprTransform =  --
            do newE <- exprTransform e tbl
@@ -149,7 +149,7 @@ updateMatrixBinaryOp sizeCheck propCheck newSize op t1 t2 tbl =
                if sizeCheck r1 c1 r2 c2
                   then if propCheck props1 props2
                        then return $ (uncurry Matrix) (newSize r1 c1 r2 c2) (updateBinaryProps op props1 props2 t1 t2)
-                       else throwError $ WrongProperties op props1 props2
+                       else throwError $ WrongProperties op props1 props2 t1 t2
                   else throwError $ SizeMismatch op m1 m2
 
 
@@ -271,4 +271,3 @@ treeFLOPs (Branch1 MInverse t) tbl =
            return $ (3 * r * r * r) `quot` 4 + flops
 treeFLOPs (Branch1 MTranspose t) tbl = treeFLOPs t tbl
 treeFLOPs (Branch1 MNegate t) tbl = treeFLOPs t tbl
-

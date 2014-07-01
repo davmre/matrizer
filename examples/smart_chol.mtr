@@ -1,0 +1,6 @@
+K: n x n posdef
+y: n x 1
+
+n ~ 100
+
+r = y' K^-1 y
