@@ -17,9 +17,6 @@ import MTypes
 linespaces :: Parser ()
 linespaces = skipMany $ oneOf " \t"
 
-
-
-
 ----------------------------------------------------------------------------------------------
 -- Lexer
 ----------------------------------------------------------------------------------------------
@@ -69,14 +66,22 @@ exprparser = buildExpressionParser table term <?> "expression"
 -- Statement Parser
 -----------------------------------------------------
 
-mainparser :: Parser Program
+data ParserStmt = Assign VarName Expr Bool
+
+mainparser :: Parser Expr
 mainparser = m_whiteSpace >> programparser <* eof
 
-programparser :: Parser Program
-programparser = do stmts <- m_semiSep1 stmt1
-                   return $ Seq $ catMaybes stmts
 
-stmt1 :: Parser (Maybe Stmt)
+buildLetExpr :: [ParserStmt] -> Expr
+buildLetExpr ((Assign v rhs tmp) : []) = Let v rhs tmp (Leaf v)
+buildLetExpr ((Assign v rhs tmp) :xs) = Let v rhs tmp (buildLetExpr xs)
+
+programparser :: Parser Expr
+programparser = do stmts <- m_semiSep1 stmt1
+                   let goodStmts = catMaybes stmts
+                   return $ buildLetExpr goodStmts
+
+stmt1 :: Parser (Maybe ParserStmt)
 stmt1 = do tmpStr <- try (string "tmp") <|> string ""
            linespaces
            v <- m_identifier
@@ -153,7 +158,7 @@ parsePreamble = endBy (try parseSymbolDef
                    <|> parseBlankLine
                    ) (char '\n')
 
-parseInput :: Parser ([PreambleLine], Program)
+parseInput :: Parser ([PreambleLine], Expr)
 parseInput = do lns <- parsePreamble
                 spaces
                 prgm <- mainparser
@@ -190,7 +195,7 @@ subPreamble preamble =
             mapped = mapM (subSymbolDefMatrix defs) matrices
         in (liftM Map.fromList) mapped
 
-readInput :: String -> ThrowsError (SymbolTable, Program)
+readInput :: String -> ThrowsError (SymbolTable, Expr)
 readInput s = do (ls, prgm) <- readOrThrow parseInput s
                  tbl <- subPreamble ls
                  return (tbl, prgm)

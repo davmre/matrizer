@@ -15,6 +15,7 @@ data Expr = Leaf VarName
            | Branch1 UnOp Expr
            | Branch2 BinOp Expr Expr
            | Branch3 TernOp Expr Expr Expr
+           | Let VarName Expr Bool Expr -- bool flag specifies whether this intermediate variable can be optimized out
            deriving (Eq, Ord)
 
 data TernOp = MTernaryProduct deriving (Eq, Ord)
@@ -27,12 +28,6 @@ data UnOp = MInverse
           | MTranspose
           | MNegate
           deriving (Eq, Ord, Enum)
-
-data Stmt = Assign VarName Expr Bool
-     deriving (Eq, Ord)
-
-data Program = Seq [Stmt]
-     deriving (Eq, Ord)
 
 -- AST pretty printing
 
@@ -58,15 +53,7 @@ instance Show Expr where
          ++ show b ++ ")"
     show (Branch3 op a b c) = "(" ++ show op ++ " " ++ show a ++ " "
          ++ show b ++ " " ++ show c ++ ")"
-
-instance Show Stmt where
-   show (Assign v e tmp) =  v ++ " := " ++ show e ++ (if tmp then " #temporary"  else "")
-
-instance Show Program where
-   show (Seq (x:[])) = show x
-   show (Seq (x:xs)) = show x ++ "\n" ++ (show $ Seq xs)
-   show (Seq []) = ""
-
+    show (Let v a tmp b) = "(let (" ++ v ++ " := " ++ show a ++ (if tmp then " #temporary ) "  else ") ") ++ "\n" ++ show b ++ ")"
 
 ------------------------------------------------------------------------
 -- Symbol Table Definition
@@ -109,7 +96,6 @@ showDim (Matrix r c _) =  (show r) ++ "x" ++ (show c)
 instance Show MatrixSym where
     show (MatrixSym r c props) = show r ++ "x" ++ show c ++ " "
                                  ++ show props
-
 
 
 ---------------------------------------------------------------------------------------------------
