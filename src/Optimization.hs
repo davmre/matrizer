@@ -4,11 +4,19 @@ import Data.Maybe
 import qualified Data.Map as Map
 import qualified Data.MultiMap as MultiMap
 import qualified Data.Set as Set
-
 import Data.List
+import Data.Ord
+
+import Control.Monad.Error
 
 import MTypes
 import Analysis
+
+----------------------------------
+
+-- convenience
+mkUniq = Set.toList . Set.fromList
+
 
 --------------------------------------------------------------------------------------------------------
 -- Zipper definitions for the Expr structure (see http://learnyouahaskell.com/zippers)
@@ -17,17 +25,21 @@ data Crumb = SingleCrumb UnOp
            | LeftCrumb BinOp Expr
            | RightCrumb BinOp Expr
            | TernCrumb TernOp [Expr] [Expr]
+           | RhsCrumb VarName Bool Expr
+           | BodyCrumb VarName Expr Bool
            deriving (Show, Eq)
 type Breadcrumbs = [Crumb]
 
 type MZipper = (Expr, Breadcrumbs)
 
 goLeft :: MZipper -> Maybe MZipper
+goLeft (Let lhs rhs tmp body, bs) = Just (rhs, RhsCrumb lhs tmp body : bs)
 goLeft (Branch2 op l r, bs) = Just (l, LeftCrumb op r:bs)
 goLeft (Branch3 op l c r, bs) = Just (l, TernCrumb op [] [c,r] : bs)
 goLeft _ = Nothing
 
 goRight :: MZipper -> Maybe MZipper
+goRight (Let lhs rhs tmp body, bs) = Just (body, BodyCrumb lhs rhs tmp : bs)
 goRight (Branch2 op l r, bs) = Just (r, RightCrumb op l:bs)
 goRight (Branch3 op l c r, bs) = Just (r, TernCrumb op [l,c] [] : bs)
 goRight _ = Nothing
@@ -41,6 +53,8 @@ goUp :: MZipper -> Maybe MZipper
 goUp (t, SingleCrumb op : bs) = Just (Branch1 op t, bs)
 goUp (t, LeftCrumb op r : bs) = Just (Branch2 op t r, bs)
 goUp (t, RightCrumb op l : bs) = Just (Branch2 op l t, bs)
+goUp (t, RhsCrumb lhs tmp body : bs) = Just (Let lhs t tmp body, bs)
+goUp (t, BodyCrumb lhs rhs tmp : bs) = Just (Let lhs rhs tmp t, bs)
 goUp (t, TernCrumb op [] [c, r] : bs) = Just (Branch3 op t c r , bs)
 goUp (t, TernCrumb op [l] [r] : bs) = Just (Branch3 op l t r , bs)
 goUp (t, TernCrumb op [l,c] [] : bs) = Just (Branch3 op l c t , bs)
@@ -59,169 +73,6 @@ modify f (t, bs) = case (f t) of
 zipperToTree :: MZipper -> Expr
 zipperToTree (n, _) = n
 
------------------------------------------------------------------
--- Main optimizer logic
-
--- optimizePrgm :: Program -> SymbolTable -> ThrowsError (Int, Program)
--- optimizePrgm prgm tbl = do (_, firstpass) <- optimizePrgmPass prgm tbl
---                           newTbl <- checkTypes firstpass tbl
---                           optimizePrgmPass firstpass newTbl
-
-optimizePrgm :: Program -> SymbolTable -> ThrowsError Program
-optimizePrgm p t = do (p1, t1) <- return $ commonSubExpressionPass p t
-                      (_, p1opt) <- optimizePrgmLocal p1 t1
-                      p1clean <- return $ cleanTmp p1opt                      
-                      (p2, t2) <- return $ commonSubExpressionPass p1clean t1
-                      (_, p2opt) <- optimizePrgmLocal p2 t2
-                      return $ cleanTmp p2opt
-
-commonSubExpressionPass :: Program -> SymbolTable -> (Program, SymbolTable)
-commonSubExpressionPass prgm tbl = let smap = buildGlobalSubExpressionMap prgm
-                                       subexprs = commonSubExpressions smap in
-                                   foldl factorSubExpression (prgm, tbl) subexprs
-
-optimizePrgmLocal :: Program -> SymbolTable -> ThrowsError (Int, Program)
-optimizePrgmLocal (Seq x) tbl = do pairs <- mapM optimizeStmt x
-                                   let (flops, stmts) = unzip pairs in
-                                       return (sum flops, Seq stmts)
-                                where
-                                optimizeStmt (Assign v e tmp) = do (flops, eopt) <- optimizeExpr e tbl
-                                                                   return $ (flops, Assign v eopt tmp)
-
-----------------------------------------------------------------
-
--- clean up tmp variables:
---  - first split the program into lists of tmp and non-tmp statements
---  - for each non-tmp statement, make a list of all the 
-
-variablesUsed :: Expr -> [VarName] -> [VarName]
-variablesUsed (Leaf a) vs = a:vs
-variablesUsed (IdentityLeaf _ ) vs = vs 
-variablesUsed (Branch1 _ a ) vs = variablesUsed a vs
-variablesUsed (Branch2 _ a b) vs = variablesUsed b (variablesUsed a vs)
-variablesUsed (Branch3 _ a b c) vs = variablesUsed c (variablesUsed b (variablesUsed a vs))
-
-allVariablesUsed :: Program  -> [VarName]
-allVariablesUsed (Seq ((Assign _ e _):xs)) = variablesUsed e (allVariablesUsed (Seq xs))
-allVariablesUsed _ = []
-
-cleanTmp :: Program -> Program
-cleanTmp prgm = let vs = allVariablesUsed prgm 
-                    (Seq stmts) = prgm in
-                    Seq $ removeUnused stmts vs
-                where 
-                removeUnused (x@(Assign v _ True):xs) used = if v `elem` used
-                                                                   then x : (removeUnused xs used)
-                                                                   else removeUnused xs used
-                removeUnused (x:xs) used = x : (removeUnused xs used)
-                removeUnused stmts _  = stmts
-                    
-
--- replaceVar :: Expr -> VarName -> Expr -> Expr
---replaceVar v sube (Leaf a)  = if a == v
---                             then sube
---                             else e
---replaceVar v sube (Branch1 op a) = Branch1 op (replaceVar a v sube)
---replaceVar v sube (Branch2 op a b) = Branch2 op (replaceVar a v sube) (replaceVar b v sube)
---replaceVar v sube (Branch3 op a b c) = Branch3 op (replaceVar a v sube) (replaceVar b v sube) (replaceVar c v sube)
-
----------------------------------------------------------------
-
--- common subexpression elimination code
-type SubExprLoc = (VarName, Breadcrumbs)
-type SubExprMap = MultiMap.MultiMap Expr SubExprLoc
-
-buildGlobalSubExpressionMap :: Program -> SubExprMap
-buildGlobalSubExpressionMap (Seq xs) = mergeMultiMaps (map buildStmtMap xs) where
-            buildStmtMap (Assign v e _) = buildSubexpressionMap MultiMap.empty  v (e, [])
-            -- merge values from a list of MultiMaps into a single Map
-            mergeMultiMaps :: (Ord a) => [MultiMap.MultiMap a b] -> MultiMap.MultiMap a b
-            mergeMultiMaps multimaps = let maps = map MultiMap.toMap multimaps
-                                           oneMap = Map.unionsWith (++) maps in
-                                       MultiMap.fromMap oneMap
-
--- build a subexpression map for a given expression
-buildSubexpressionMap :: SubExprMap -> VarName -> MZipper -> SubExprMap
-buildSubexpressionMap smap stmt z@( n@(Branch1 _ _), bs) = 
-                      let childMap = maybe smap (buildSubexpressionMap smap stmt) (goDown z) in
-                      MultiMap.insert n (stmt, bs) childMap 
-buildSubexpressionMap smap stmt z@( n@(Branch2 _ _ _), bs) = 
-                      let leftMap = maybe smap (buildSubexpressionMap smap stmt) (goLeft z)
-                          rightMap = maybe leftMap (buildSubexpressionMap leftMap stmt) (goRight z) in
-                      MultiMap.insert n (stmt, bs) rightMap 
-buildSubexpressionMap smap stmt z@( n@(Branch3 _ _ _ _), bs) = 
-                      let leftMap = maybe smap (buildSubexpressionMap smap stmt) (goLeft z)
-                          centerMap = maybe leftMap (buildSubexpressionMap leftMap stmt) (goDown z)
-                          rightMap = maybe centerMap (buildSubexpressionMap centerMap stmt) (goRight z) in
-                      MultiMap.insert n (stmt, bs) rightMap 
-buildSubexpressionMap smap _ (Leaf _ , _) = smap
-buildSubexpressionMap smap stmt (n@(IdentityLeaf _), bs) = MultiMap.insert n (stmt, bs) smap
-
-
--- given a character specifying a given statement, remove all of those expressions from the map
-removeLineFromMap :: SubExprMap -> VarName -> SubExprMap
-removeLineFromMap smap v = let m = MultiMap.toMap smap
-                               filtered_m = Map.map (filter (\(vv, _) -> (vv == v) )) m in
-                           MultiMap.fromMap filtered_m
-
-updateMapWithLine :: SubExprMap -> Stmt -> SubExprMap
-updateMapWithLine smap (Assign v e _) = buildSubexpressionMap smap v (e, [])
-
--- generate a list of all common subexpressions: expressions that occur at least twice
-commonSubExpressions :: SubExprMap -> [(Expr, [SubExprLoc])]
-commonSubExpressions smap = let l = Map.toList $ MultiMap.toMap smap
-                                l_notrans = filter (\(e, _) -> not $ isTranspose e) l in
-                            filter (\(_, locs) -> (length locs > 1)) l_notrans
-                            where isTranspose (Branch1 MTranspose (Leaf _)) = True
-                                  isTranspose _ = False
-
--- given a subexpression, return the program transformed to factor out
--- that subexpression into its own statement.
-factorSubExpression :: (Program, SymbolTable) -> (Expr, [SubExprLoc]) -> (Program, SymbolTable)
-factorSubExpression ((Seq stmts), tbl) (e, locs) = 
-    let currentVarMatch = find (\(v, bs) -> null bs) locs in
-    subCurrentVar ((Seq stmts), tbl) (e, locs) currentVarMatch
-
--- deal with two cases: either we already have a variable assigned to 
--- the subexpression in question, or we need to create a new tmp variable.
--- this is a bit of a hack and should probably be incorporated under factorSubExpression
-subCurrentVar ((Seq stmts), tbl) (e, locs) (Just (v, bs)) = 
-              let (Just idx) = stmtPos stmts v
-                  (p, ps) = splitAt (idx + 1) stmts in
-              (Seq $ p ++ subAll ps v locs, tbl)
-subCurrentVar ((Seq stmts), tbl) (e, locs) Nothing = 
-              let newVar = getNewVar tbl
-                  (Right newMatrix) = (treeMatrix e tbl)
-                  newTbl = Map.insert newVar newMatrix tbl
-                  newStmts = subAll stmts newVar locs
-                  newIdx = minimum $ catMaybes $ map (stmtPos newStmts) (fst $ unzip locs)
-                  (p,ps) = splitAt newIdx newStmts in
-              (Seq $ p ++ (Assign newVar e True):ps, newTbl)
-              where
-              getNewVar oldTbl = maybe "tmp11" id (find ((flip Map.notMember) oldTbl) ["tmp1", "tmp2", "tmp3", "tmp4", "tmp5", "tmp6", "tmp7", "tmp8", "tmp9", "tmp10"])
-
-stmtPos stmtList v = findIndex (\(Assign vv _ _) -> (vv == v)) stmtList
-
-
-
--- given a list of locations where a particular subexpression occurs,
--- return the program in which all of those locations are replaced by
--- the given variable
-subAll :: [Stmt] -> VarName -> [SubExprLoc] -> [Stmt]
-subAll stmts newVar (x:xs) = subAll (replaceSubExpInPrgm stmts newVar x) newVar xs
-subAll stmts _ [] = stmts
-
-replaceSubExpInPrgm :: [Stmt] -> VarName -> SubExprLoc -> [Stmt]
-replaceSubExpInPrgm stmts newVar (vv, bs) = map (replaceSubExp newVar (vv, bs)) stmts
-
-replaceSubExp :: VarName -> SubExprLoc -> Stmt -> Stmt
-replaceSubExp newVar (vv, bs) (Assign v e tmp)  = 
-              if (v /= vv) 
-              then Assign v e tmp
-              else let newZipper = recreateZipper (reverse bs) (Just (e, [])) in
-              case newZipper of
-              (Just z) -> Assign vv (reconstructTree z (Leaf newVar)) tmp
-              Nothing -> Assign vv e tmp
 
 -- Given a set of breadcrumbs pointing to some location in an old expression tree,
 -- and a zipper initialized to the root of a new expression tree,
@@ -242,42 +93,189 @@ recreateZipper (LeftCrumb _ _:bs) (Just z) = recreateZipper bs (goLeft z)
 recreateZipper ((RightCrumb _ _):bs) (Just z) = recreateZipper bs (goRight z)
 recreateZipper ((SingleCrumb _):bs) (Just z) = recreateZipper bs (goDown z)
 recreateZipper ((TernCrumb _ _ _):bs) (Just z) = recreateZipper bs (goDown z)
+recreateZipper ((RhsCrumb _ _ _):bs) (Just z) = recreateZipper bs (goLeft z)
+recreateZipper ((BodyCrumb _ _ _):bs) (Just z) = recreateZipper bs (goRight z)
 recreateZipper [] z = z 
 recreateZipper _ Nothing = Nothing
 
+
+-----------------------------------------------------------------
+-- Main optimizer logic
+
+optimize :: Expr -> SymbolTable -> ThrowsError (Expr, Int)
+optimize expr tbl = do beam <- beamSearch 5 5 1 tbl [(expr, 0)]
+                       return $ head beam
+
 ----------------------------------------------------------------
--- toplevel expression optimization function: first, call optimizeHelper to
---  get a list of all transformed versions of the current tree
---  (applying all rules at every node until no new trees are
---  produced). Second, calculate FLOPs for each of the transformed
---  trees (note technically the FLOPs calculation can fail, so we get
---  sketchyFLOPsList which is a list of ThrowsError Int, hence the
---  final fmap which deals with this).  Finally, sort the zipped
---  (flops, trees) list to get the tree with the smallest FLOP count,
---  and return that.
-optimizeExpr :: Expr -> SymbolTable -> ThrowsError (Int, Expr)
-optimizeExpr tree tbl = let (_, allTreesSet) = optimizeHelper tbl [tree] (Set.singleton tree)
-                            allTreesList = Set.toList allTreesSet
-                            sketchyFLOPsList = mapM (flip treeFLOPs tbl) allTreesList in
-                        fmap (\ flopsList -> head $ sort $ zip flopsList allTreesList) sketchyFLOPsList
+
+-- recursive wrapper function to iterate beam search
+beamSearch :: Int -> Int -> Int -> SymbolTable -> [(Expr, Int)] -> ThrowsError [(Expr, Int)]
+beamSearch 0 _ _ _ beam = return $ beam
+beamSearch iters beamSize nRewrites tbl beam = 
+                 do newBeam1 <- beamIter rewriteMoves beamSize nRewrites tbl beam
+                    newBeam2 <- beamIter commonSubexpMoves beamSize 1 tbl newBeam1
+                    beamSearch (iters-1) beamSize nRewrites tbl newBeam2
+
+type MoveRewriter = SymbolTable -> Expr -> ThrowsError [(Expr, Int)]
+
+-- single iteration of beam search: compute all rewrites and take the best few
+beamIter :: MoveRewriter -> Int -> Int -> SymbolTable -> [(Expr, Int)] -> ThrowsError [(Expr, Int)]
+beamIter rw beamSize nRewrites tbl oldBeam = do rewrites <- reOptimize nRewrites rw tbl oldBeam
+                                                return $ take beamSize (sortBy (comparing snd) rewrites)
+
+-- for cse, same pattern of generating a list of rewrites and sorting them
+-- 'reoptimize n' takes a symboltable and a list of candidates, and generates a new list
+-- reoptimizeOnce is just reOptimize N=1, minus deduping
+-- optimizerTraversal takes a table and a breadCrumb, and generates a list of (expr,scores). 
 
 
--- inputs: a list of still-to-be-transformed expressions, and a set of
--- all expressions that have already been generated by the
--- optimization rules
 
--- outputs: a new list of candidate expressions, constructed by
--- removing the first element of the previous list, and appending to
--- the end all legal transformations of that element that are not
--- already in the tabu set. also returns a augmented tabu set
--- containing all of the newly generated expressions (the same ones
--- that were added to the list)
-type TabuSet = Set.Set Expr
-optimizeHelper :: SymbolTable -> [Expr] -> TabuSet -> ([Expr], TabuSet)
-optimizeHelper _ [] exprSet = ([], exprSet)
-optimizeHelper tbl (t:ts) exprSet = let generatedExprs = Set.fromList $ optimizerTraversal tbl (t, [])
-                                        novelExprs = Set.difference generatedExprs exprSet in
-                                    optimizeHelper tbl ( ts ++ (Set.toList novelExprs) ) (Set.union exprSet novelExprs)
+
+-- generate all scored rewrites accessible by applying at most n rewrite rules
+reOptimize :: Int -> MoveRewriter -> SymbolTable -> [(Expr, Int)] -> ThrowsError [(Expr, Int)]
+reOptimize 0 rw tbl candidates = return $ candidates
+reOptimize n rw tbl candidates = 
+           do iter1 <- reOptimizeOnce rw tbl candidates
+              reOptimize (n-1) rw tbl (Set.toList $ Set.fromList (candidates ++ iter1))
+
+
+-- generate all rewrites of the given scored list of expressions, tracking the 
+-- global FLOP delta for each rewrite
+reOptimizeOnce :: MoveRewriter -> SymbolTable -> [(Expr, Int)] -> ThrowsError [(Expr, Int)]
+reOptimizeOnce _ _ [] = return $ []
+reOptimizeOnce rw tbl ((t, score):ts) = do localDeltas <- rw tbl t
+                                           newTs <- reOptimizeOnce rw tbl ts
+                                           let globalDeltas =  [(r, score+ds) | (r, ds) <- localDeltas] in
+                                               return $ globalDeltas ++ newTs
+
+
+----------------------------------------------------------------
+
+-- clean up tmp variables:
+--  - first split the program into lists of tmp and non-tmp statements
+--  - for each non-tmp statement, make a list of all the 
+
+variablesUsed :: Expr -> [VarName] -> [VarName]
+variablesUsed (Leaf a) vs = a:vs
+variablesUsed (IdentityLeaf _ ) vs = vs 
+variablesUsed (Branch1 _ a ) vs = variablesUsed a vs
+variablesUsed (Branch2 _ a b) vs = variablesUsed b (variablesUsed a vs)
+variablesUsed (Branch3 _ a b c) vs = variablesUsed c (variablesUsed b (variablesUsed a vs))
+variablesUsed (Let lhs rhs tmp body) vs = variablesUsed body (variablesUsed rhs vs)
+
+cleanTmp :: Expr -> Expr
+cleanTmp prgm = let vs = variablesUsed prgm [] in
+                    removeUnused prgm vs
+                where 
+                removeUnused (Let lhs rhs False body) used = Let lhs rhs False (removeUnused body used)
+                removeUnused (Let lhs rhs True body) used = if lhs `elem` used
+                                                             then (Let lhs rhs True (removeUnused body used)) 
+                                                             else removeUnused body used
+                removeUnused e _  = e
+                    
+---------------------------------------------------------------
+
+-- common subexpression elimination code
+type SubExprMap = MultiMap.MultiMap Expr Breadcrumbs
+
+-- build a subexpression map for a given expression
+buildSubexpressionMap :: SubExprMap  -> MZipper -> SubExprMap
+buildSubexpressionMap smap z@( n@(Branch1 _ _), bs) = 
+                      let childMap = maybe smap (buildSubexpressionMap smap) (goDown z) in
+                      MultiMap.insert n bs childMap 
+buildSubexpressionMap smap z@( n@(Branch2 _ _ _), bs) = 
+                      let leftMap = maybe smap (buildSubexpressionMap smap) (goLeft z)
+                          rightMap = maybe leftMap (buildSubexpressionMap leftMap) (goRight z) in
+                      MultiMap.insert n bs rightMap 
+buildSubexpressionMap smap z@( n@(Let _ _ _ _), bs) = 
+                      let leftMap = maybe smap (buildSubexpressionMap smap) (goLeft z)
+                          rightMap = maybe leftMap (buildSubexpressionMap leftMap) (goRight z) in
+                      rightMap  -- don't actually include the 'let' itself as a subexpression that can
+                                -- be factored out
+buildSubexpressionMap smap z@( n@(Branch3 _ _ _ _), bs) = 
+                      let leftMap = maybe smap (buildSubexpressionMap smap) (goLeft z)
+                          centerMap = maybe leftMap (buildSubexpressionMap leftMap) (goDown z)
+                          rightMap = maybe centerMap (buildSubexpressionMap centerMap) (goRight z) in
+                      MultiMap.insert n bs rightMap 
+buildSubexpressionMap smap (Leaf _ , _) = smap
+buildSubexpressionMap smap (n@(IdentityLeaf _), bs) = smap
+
+-- generate a list of all common subexpressions: expressions that occur at least twice
+commonSubExpressions :: SubExprMap -> [(Expr, [Breadcrumbs])]
+commonSubExpressions smap = let l = Map.toList $ MultiMap.toMap smap
+                                l_notrans = filter (\(e, _) -> not $ isTranspose e) l in
+                            filter (\(_, locs) -> (length locs > 1)) l_notrans
+                            where isTranspose (Branch1 MTranspose (Leaf _)) = True
+                                  isTranspose _ = False
+
+-- return the first name of the form "tmp1", "tmp2", etc. not already in use. 
+chooseTmpVarname :: Expr -> VarName
+chooseTmpVarname e = let varsUsed = mkUniq (variablesUsed e [])
+                         tmps = ["tmp" ++ (show n) | n <- [1..] ]
+                         unusedTmps = filter (not . ((flip elem) varsUsed)) tmps in
+                     head unusedTmps
+
+
+-- given an expression, a set of breadcrumbs leading to a subexpression, and a new variable name,
+-- return the expression in which the subexpression is replaced by a leaf node with the given
+-- variable name.
+replaceSubExp :: Expr -> Breadcrumbs -> VarName -> ThrowsError Expr
+replaceSubExp e bs newVar = let newZipper = recreateZipper (reverse bs) (Just (e, [])) in
+                            case newZipper of
+                            (Just z) -> return $ reconstructTree z (Leaf newVar)
+                            Nothing -> throwError $ BadCrumbs e
+
+-- iterate the previous function
+replaceSubExprs :: Expr -> [Breadcrumbs] -> VarName -> ThrowsError Expr
+replaceSubExprs e [] _ = return $ e
+replaceSubExprs e (bs:bss) newVar = do replaced <- replaceSubExp e bs newVar
+                                       replaceSubExprs replaced bss newVar
+
+
+-- check whether all required variables for the subexpression are defined in
+-- the current symbol table
+tblMeetsDeps deps tbl = and [Map.member d tbl | d <- deps]
+
+-- insert a 'let' expression for the new subexpression in the highest legal place
+insertCommonDef :: SymbolTable -> Expr ->  VarName -> Expr -> ThrowsError Expr
+insertCommonDef tbl e lhs rhs = let dependents = mkUniq $ variablesUsed rhs [] in
+                                do (sube, bs) <- if tblMeetsDeps dependents tbl then Right (e, [])
+                                                 else findInsertionPoint dependents tbl (Right (e, []))
+                                   return $ reconstructTree (sube, bs) (Let lhs rhs True sube)
+
+-- descend through an expression. whenever we see a 'let' expression, 
+-- check to see if all dependencies are now met. if so, the insertion
+-- point is just below the 'let'. 
+-- HACK: this currently assumes that 'let's  only occur at the
+-- top of an expression. I really need to guarantee this in the type system. 
+findInsertionPoint :: [VarName] -> SymbolTable -> ThrowsError MZipper -> ThrowsError MZipper
+findInsertionPoint deps tbl (Right z@( n@(Let _ _ _ _), _)) = 
+             do newtbl <- tblBind n tbl
+                if tblMeetsDeps deps newtbl then (maybeToError $ goRight z)
+                else findInsertionPoint deps newtbl (maybeToError $ goRight z)
+findInsertionPoint _ _ _ = throwError $ MaybeError "badly formed tree"
+
+
+-- High-level function to transform an expression, factoring out a subexpression
+-- as identitified by commonSubExpressions
+factorSubExpression :: Expr -> SymbolTable -> (Expr, [Breadcrumbs]) -> ThrowsError (Expr, Int)
+factorSubExpression e tbl (subexp, locs) = let tmpVar = chooseTmpVarname e in
+                                           do factoredOut <- replaceSubExprs e locs tmpVar
+                                              factoredIn <- insertCommonDef tbl factoredOut tmpVar subexp 
+                                              flops <- treeFLOPs subexp tbl 
+                                              let score = (1-(length locs)) * flops + letcost_CONST in
+                                                  return $ (factoredIn, score)
+
+
+-- Given an expression, return all versions reachable by factoring out a single subexpression
+commonSubexpMoves :: MoveRewriter
+commonSubexpMoves tbl e = let smap = buildSubexpressionMap MultiMap.empty (e, [])
+                              subexprs = commonSubExpressions smap in
+                          mapM (factorSubExpression e tbl) subexprs
+                          
+
+
+-------------------------------------------------------------------------------------
 
 -- Given a zipper corresponding to a position (node) in a tree, return
 -- the list of all new trees constructable by applying a single
@@ -285,31 +283,52 @@ optimizeHelper tbl (t:ts) exprSet = let generatedExprs = Set.fromList $ optimize
 -- any descendant node. Note: the transformed trees we return are
 -- rooted at the toplevel, i.e. they have been 'unzipped' by
 -- reconstructTree.
-optimizerTraversal :: SymbolTable -> MZipper -> [Expr]
+
+rewriteMoves :: MoveRewriter
+rewriteMoves tbl e = return $ optimizerTraversal tbl (e, [])
+
+optimizerTraversal :: SymbolTable -> MZipper -> [(Expr, Int)]
 optimizerTraversal _ (Leaf _, _) = []
 optimizerTraversal _ (IdentityLeaf _, _) = []
 optimizerTraversal tbl z@( n@(Branch3 _ _ _ _), _) =
-        (map (reconstructTree z) (optimizeAtNode tbl n) ) ++
+        (map (reconstructTreeScore z) (optimizeAtNode tbl n) ) ++
         (maybe [] id (fmap (optimizerTraversal tbl) (goLeft z) )) ++
         (maybe [] id (fmap (optimizerTraversal tbl) (goDown z) )) ++
         (maybe [] id (fmap (optimizerTraversal tbl) (goRight z)))
 optimizerTraversal tbl z@( n@(Branch2 _ _ _), _) =
-        (map (reconstructTree z) (optimizeAtNode tbl n) ) ++
+        (map (reconstructTreeScore z) (optimizeAtNode tbl n) ) ++
         (maybe [] id (fmap (optimizerTraversal tbl) (goLeft z) )) ++
         (maybe [] id (fmap (optimizerTraversal tbl) (goRight z)))
+optimizerTraversal tbl z@( n@(Let _ _ _ _), _) =
+        (map (reconstructTreeScore z) (optimizeAtNode tbl n) ) ++
+        (maybe [] id (fmap (optimizerTraversal tbl) (goLeft z) )) ++
+        (maybe [] id (fmap (optimizerTraversal boundTbl ) (goRight z)))
+        where
+        (Right boundTbl) = tblBind n tbl
 optimizerTraversal tbl z@( n@(Branch1 _ _), _) =
-        (map (reconstructTree z) (optimizeAtNode tbl n) ) ++
+        (map (reconstructTreeScore z) (optimizeAtNode tbl n) ) ++
         (maybe [] id (fmap (optimizerTraversal tbl) (goDown z)))
 
 -- Given a tree node, return a list of all transformed nodes that can
--- be generated by applying optimization rules at that node.
-optimizeAtNode :: SymbolTable -> Expr -> [Expr]
-optimizeAtNode tbl t = mapMaybeFunc t [f tbl | f <- optimizationRules]
+-- be generated by applying optimization rules at that node, along with
+-- the net change in FLOPs
+optimizeAtNode :: SymbolTable -> Expr -> [(Expr, Int)]
+optimizeAtNode tbl t = let opts = mapMaybeFunc t [f tbl | f <- optimizationRules] in
+                       scoreOptimizations tbl t opts
+
+scoreOptimizations :: SymbolTable -> Expr -> [Expr] -> [(Expr, Int)]
+scoreOptimizations tbl t opts = map scoreOpt opts where
+                   (Right origFLOPs) = treeFLOPs t tbl
+                   scoreOpt t2 = let (Right newFLOPs) = treeFLOPs t2 tbl in
+                                 (t2, newFLOPs - origFLOPs)
 
 -- Take a zipper representing a subtree, and a new subtree to replace that subtree.
 -- return a full (rooted) tree with the new subtree in the appropriate place.
 reconstructTree :: MZipper -> Expr -> Expr
 reconstructTree (_, bs) t2 = zipperToTree $ topMost (t2, bs)
+
+reconstructTreeScore:: MZipper -> (Expr, Int) -> (Expr, Int)
+reconstructTreeScore (_, bs) (t2, score) = (zipperToTree $ topMost (t2, bs), score)
 
 -- Utility function used by optimizeAtNode: apply a list of functions
 -- to a constant input, silently discarding any element for which f
@@ -386,9 +405,25 @@ transposeRules = [distributeTranspose
                  , swapTransposeInverse
                  ]
 
+letExpRules :: Rules
+letExpRules = [groundSubExpr]           
+
 optimizationRules :: Rules
 optimizationRules = inverseRules ++ transposeRules ++ binopSumRules ++
-    binopProductRules ++ ternProductRules
+    binopProductRules ++ ternProductRules ++ letExpRules
+
+groundSubExpr :: Rule
+groundSubExpr _ (Let lhs rhs True body) = Just (groundSubExprHelper body lhs rhs)
+groundSubExpr _ _ = Nothing
+
+groundSubExprHelper :: Expr -> VarName -> Expr -> Expr
+groundSubExprHelper (Leaf a) v subexpr = if (a == v) then subexpr else (Leaf a)
+groundSubExprHelper (Branch1 op a) v subexpr = Branch1 op (groundSubExprHelper a v subexpr)
+groundSubExprHelper (Branch2 op a b) v subexpr = Branch2 op (groundSubExprHelper a v subexpr) (groundSubExprHelper b v subexpr)
+groundSubExprHelper (Branch3 op a b c) v subexpr = Branch3 op (groundSubExprHelper a v subexpr) (groundSubExprHelper b v subexpr) (groundSubExprHelper c v subexpr)
+groundSubExprHelper (Let lhs rhs tmp body) v subexpr = Let lhs (groundSubExprHelper rhs v subexpr) tmp (groundSubExprHelper body v subexpr)
+groundSubExprHelper e v subexpr = e
+
 
 assocMult :: Rule
 assocMult _ (Branch2 MProduct (Branch2 MProduct l c) r) = Just (Branch2 MProduct l (Branch2 MProduct c r))

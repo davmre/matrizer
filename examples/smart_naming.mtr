@@ -6,5 +6,5 @@ y: n x 1
 n ~ 100
 d ~ 5
 
-A = X' * y;
+tmp A = X' * y;
 B = X * (X' * y)

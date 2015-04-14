@@ -111,6 +111,8 @@ data MError = SizeMismatch BinOp Matrix Matrix
             | BadDimension String
             | AnalysisError String
             | Parser ParseError
+            | BadCrumbs Expr
+            | MaybeError String
 
 showError :: MError -> String
 showError (SizeMismatch op m1 m2) =
@@ -131,6 +133,8 @@ showError (Default s)      = "Default Error???" ++ show s
 showError (BadDimension d) = "Invalid dimension specification'" ++ show d ++ "'"
 showError (Parser err)     = "Parse error at " ++ show err
 showError (AnalysisError err)     = "Analysis error: " ++ show err
+showError (BadCrumbs exp)     = "Breadcrumbs don't match the current expression: " ++ show exp
+showError (MaybeError err)     = "Maybe expression returned Nothing: " ++ show err
 
 instance Show MError where show = showError
 
@@ -139,6 +143,10 @@ instance Error MError where
          strMsg = Default
 
 type ThrowsError = Either MError
+
+maybeToError :: Maybe a -> ThrowsError a
+maybeToError (Just val) = return val
+maybeToError Nothing = Left $ MaybeError "automatically converted"
 
 trapError :: (Show a, MonadError a m) => m String -> m String
 trapError action = catchError action (return . show)
