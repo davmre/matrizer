@@ -2,9 +2,13 @@ matrizer
 ========
 
 matrizer is an optimizing compiler for matrix expressions. You give it an expression (currently in awkward custom MATLAB-like syntax), along with approximate sizes of the matrices involved, and it applies algebraic identities along with other optimizations to search for a version of the expression requiring fewer FLOPs to compute. The result is output as code generated for your favorite numeric computing environment (currently only Python/numpy is implemented). For example, the normal equations expression 
-    (X'X)^-1 X'y 
+ 
+   (X'X)^-1 X'y 
+
 is transformed into Python code 
+
     scipy.linalg.cho_solve(scipy.linalg.cho_factor(np.dot(X.T, X)), np.dot(X.T, y)).
+
 
 To build:
 
