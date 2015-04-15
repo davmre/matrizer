@@ -103,7 +103,7 @@ recreateZipper _ z = z
 -- Main optimizer logic
 
 optimize :: Expr -> SymbolTable -> ThrowsError (Expr, Int)
-optimize expr tbl = do beam <- beamSearch 5 20 2 tbl [(expr, 0)]
+optimize expr tbl = do beam <- beamSearch 5 10 4 tbl [(expr, 0)]
                        return $ head beam
 
 ----------------------------------------------------------------
@@ -375,7 +375,7 @@ type Rules = [Rule]
 binopSumRules :: Rules
 binopSumRules = [commonFactorLeft
                 , commonFactorRight
---                , matrixInvLemmaRight
+                , matrixInvLemmaRight
                 ]
 
 binopProductRules :: Rules
@@ -396,8 +396,8 @@ ternProductRules = [splitTernaryProductLeftAssoc
 inverseRules :: Rules
 inverseRules = [distributeInverse
                , swapInverseTranspose
-               , cancelDoubleInverse,
-                 matrixInvLemmaLeft
+               , cancelDoubleInverse
+               , matrixInvLemmaLeft
                ]
 
 transposeRules :: Rules
@@ -531,13 +531,20 @@ swapTransposeInverse _ _ = Nothing
 
 matrixInvLemmaLeft :: Rule
 matrixInvLemmaLeft _ (Branch1 MInverse (Branch2 MSum a (Branch3 MTernaryProduct u c v))) =
-  Just (Branch2 MSum (Branch1 MInverse a) (Branch1 MNegate (Branch3 MTernaryProduct (Branch2 MProduct (Branch1 MInverse a) u ) ( Branch2 MSum (Branch1 MInverse c) (Branch3 MTernaryProduct v (Branch1 MInverse a) u) ) (Branch2 MProduct v (Branch1 MInverse a)) )))
+  Just (Branch2 MSum (Branch1 MInverse a) (Branch1 MNegate (Branch3 MTernaryProduct (Branch2 MProduct (Branch1 MInverse a) u ) (Branch1 MInverse ( Branch2 MSum (Branch1 MInverse c) (Branch3 MTernaryProduct v (Branch1 MInverse a) u) ) ) (Branch2 MProduct v (Branch1 MInverse a)) )))
 matrixInvLemmaLeft _ _ = Nothing
 
--- matrixInvLemmaRight :: Rule
---matrixInvLemmaRight tbl (Branch2 MSum (Branch1 MInverse A) (Branch1 MNegate (Branch3 MTernaryProduct (Branch2 MProduct (Branch1 MInverse B) C ) ( Branch2 MSum (Branch1 MInverse D) (Branch3 MTernaryProduct E (Branch1 MInverse F) G) ) (Branch2 MProduct H (Branch1 MInverse I)) ))) =if (A == B && A == F && A == I)&& (C == G)&& (D == H)
--- matrixInvLemmaRight _ (Branch2 MSum ainv (Branch1 MNegate (Branch3 MTernaryProduct (Branch2 MProduct ainv2 u ) ( Branch2 MSum cinv (Branch3 MTernaryProduct v ainv3 u2) ) (Branch2 MProduct v2 ainv4) ))) =
---   if (ainv == ainv2 && ainv == ainv3 && ainv == ainv4)&& (u == u2)&& (v == v2)
---  then Just (Branch1 MInverse (Branch2 MSum (Branch1 MInverse ainv) (Branch3 MTernaryProduct u (Branch1 MInverse cinv) v)))
---  else Nothing
--- matrixInvLemmaRight _ _ = Nothing
+matrixInvLemmaRight :: Rule
+matrixInvLemmaRight tbl (Branch2 MSum (Branch1 MInverse a) (Branch1 MNegate (Branch3 MTernaryProduct (Branch2 MProduct (Branch1 MInverse b) c ) (Branch1 MInverse ( Branch2 MSum (Branch1 MInverse d) (Branch3 MTernaryProduct e (Branch1 MInverse f) g) )) (Branch2 MProduct h (Branch1 MInverse i)) ))) =
+                    if (a == b && a == f && a == i)&& (c == g)&& (e == h) then
+                    -- MIL A: (A, B, F, I)
+                    -- MIL U: C, G
+                    -- MIL C: D
+                    -- MIL V: E, H
+                    Just (Branch1 MInverse (Branch2 MSum a (Branch3 MTernaryProduct c d e)))    
+                    else Nothing
+matrixInvLemmaRight tbl z@(Branch2 MSum ainv (Branch1 MNegate (Branch3 MTernaryProduct (Branch2 MProduct ainv2 u ) (Branch1 MInverse ( Branch2 MSum cinv (Branch3 MTernaryProduct v ainv3 u2) ) ) (Branch2 MProduct v2 ainv4) ) ) ) =
+   if (ainv == ainv2 && ainv == ainv3 && ainv == ainv4)&& (u == u2)&& (v == v2)
+   then Just (Branch1 MInverse (Branch2 MSum (Branch1 MInverse ainv) (Branch3 MTernaryProduct u (Branch1 MInverse cinv) v)))
+  else Nothing
+matrixInvLemmaRight _ _ = Nothing
