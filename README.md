@@ -1,23 +1,38 @@
 matrizer
 ========
 
-To build, run:
+To build:
 
-ghc --make Matrizer
+    runhaskell Setup.hs configure
+    runhaskell Setup.hs build
 
-Try an example: ./Matrizer examples/normaleqns.mtr
+If cabal complains about being unable to find a dependency that you
+know is installed, it might be in your user package db. Try running
+
+    runhaskell Setup.hs --user configure
+
+instead. For other common issues with cabal, see
+http://www.haskell.org/cabal/FAQ.html.
+
+Try running an example:
+
+    dist/build/matrizer/matrizer examples/normaleqns.mtr
 
 This should output:
 
-     Symbol table: fromList [('X',100x5 []),('y',100x1 [])]
-     Parsed as: (* (* (inv (* (transpose X) X)) (transpose X)) y)
-     Resulting matrix: 5x1 []
-     Naive FLOPs required: 10563
-     Naive code generated: np.dot(np.dot(np.linalg.inv(np.dot(X.T, X)), X.T), y)
+    Preamble symbol table: fromList [("X",100x5 []),("y",100x1 [])]
+    Code parsed as:
+    w := (* (* (inv (* (transpose X) X)) (transpose X)) y)
+    Inferred symbol table: fromList [("X",100x5 []),("w",5x1 []),("y",100x1 [])]
+    Naive FLOPs required: 10563
+    Naive code generated:
+    w = np.dot(np.dot(np.linalg.inv(np.dot(X.T, X)), X.T), y)
 
-     Optimized flops required: 6061
-     Optimized tree: (cholSolve (* (transpose X) X) (* (transpose X) y))
-     Optimized code: scipy.linalg.cho_solve(scipy.linalg.cho_factor(np.dot(X.T, X)), np.dot(X.T, y))
+    Optimized flops required: 6061
+    Optimized program:
+    w := (cholSolve (* (transpose X) X) (* (transpose X) y))
+    Optimized code generated:
+    w = scipy.linalg.cho_solve(scipy.linalg.cho_factor(np.dot(X.T, X)), np.dot(X.T, y))
 
 There is currently no documentation, but the examples provide a
 reasonable guide to what's possible.  Currently we support basic
