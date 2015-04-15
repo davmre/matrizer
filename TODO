@@ -1,10 +1,12 @@
 - Scalars
 - Sparse matrices
 - Blocked or block-diagonal matrices
-- Woodbury matrix inversion lemma
 - Optimizations for the optimizer:
-  	- Bounded-depth search to allow for cyclic rewrite rules
-	- Heuristics for guiding search
+  	- Experiment with stochastic (MCMC-style / tempered) search 
+	  algorithms
+	- Add clever rewrite rules to reduce required search depth
+          (could be done by looking for multistep rewrites that tend
+          to occur on the solution path)
 	- Optimizer should 'show its work' and return a list of
           rewrite rules applied
 - Other matrix operations (with appropriate optimizer rewrite rules):
