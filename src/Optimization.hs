@@ -12,11 +12,12 @@ import Control.Monad.Error
 import MTypes
 import Analysis
 
+import Debug.Trace
+
 ----------------------------------
 
 -- convenience
 mkUniq = Set.toList . Set.fromList
-
 
 --------------------------------------------------------------------------------------------------------
 -- Zipper definitions for the Expr structure (see http://learnyouahaskell.com/zippers)
@@ -24,7 +25,9 @@ mkUniq = Set.toList . Set.fromList
 data Crumb = SingleCrumb UnOp
            | LeftCrumb BinOp Expr
            | RightCrumb BinOp Expr
-           | TernCrumb TernOp [Expr] [Expr]
+           | TernCrumbL TernOp Expr Expr
+           | TernCrumbC TernOp Expr Expr
+           | TernCrumbR TernOp Expr Expr
            | RhsCrumb VarName Bool Expr
            | BodyCrumb VarName Expr Bool
            deriving (Show, Eq)
@@ -32,43 +35,38 @@ type Breadcrumbs = [Crumb]
 
 type MZipper = (Expr, Breadcrumbs)
 
-goLeft :: MZipper -> Maybe MZipper
-goLeft (Let lhs rhs tmp body, bs) = Just (rhs, RhsCrumb lhs tmp body : bs)
-goLeft (Branch2 op l r, bs) = Just (l, LeftCrumb op r:bs)
-goLeft (Branch3 op l c r, bs) = Just (l, TernCrumb op [] [c,r] : bs)
-goLeft _ = Nothing
+goLeft :: MZipper -> ThrowsError MZipper
+goLeft (Let lhs rhs tmp body, bs) = Right (rhs, RhsCrumb lhs tmp body : bs)
+goLeft (Branch2 op l r, bs) = Right (l, LeftCrumb op r:bs)
+goLeft (Branch3 op l c r, bs) = Right (l, TernCrumbL op c r : bs)
+goLeft (n, bs) = throwError $ BadCrumbs n ("going left: " ++ show bs)
 
-goRight :: MZipper -> Maybe MZipper
-goRight (Let lhs rhs tmp body, bs) = Just (body, BodyCrumb lhs rhs tmp : bs)
-goRight (Branch2 op l r, bs) = Just (r, RightCrumb op l:bs)
-goRight (Branch3 op l c r, bs) = Just (r, TernCrumb op [l,c] [] : bs)
-goRight _ = Nothing
+goRight :: MZipper -> ThrowsError MZipper
+goRight (Let lhs rhs tmp body, bs) = Right (body, BodyCrumb lhs rhs tmp : bs)
+goRight (Branch2 op l r, bs) = Right (r, RightCrumb op l:bs)
+goRight (Branch3 op l c r, bs) = Right (r, TernCrumbR op l c : bs)
+goRight (n, bs) = throwError $ BadCrumbs n ("going right: " ++ show bs)
 
-goDown :: MZipper -> Maybe MZipper
-goDown (Branch1 op t, bs) = Just (t, SingleCrumb op : bs)
-goDown (Branch3 op l c r, bs) = Just (c, TernCrumb op [l] [r] : bs)
-goDown _ = Nothing
+goDown :: MZipper -> ThrowsError MZipper
+goDown (Branch1 op t, bs) = Right (t, SingleCrumb op : bs)
+goDown (Branch3 op l c r, bs) = Right (c, TernCrumbC op l r : bs)
+goDown (n, bs) = throwError $ BadCrumbs n ("going down: " ++ show bs)
 
-goUp :: MZipper -> Maybe MZipper
-goUp (t, SingleCrumb op : bs) = Just (Branch1 op t, bs)
-goUp (t, LeftCrumb op r : bs) = Just (Branch2 op t r, bs)
-goUp (t, RightCrumb op l : bs) = Just (Branch2 op l t, bs)
-goUp (t, RhsCrumb lhs tmp body : bs) = Just (Let lhs t tmp body, bs)
-goUp (t, BodyCrumb lhs rhs tmp : bs) = Just (Let lhs rhs tmp t, bs)
-goUp (t, TernCrumb op [] [c, r] : bs) = Just (Branch3 op t c r , bs)
-goUp (t, TernCrumb op [l] [r] : bs) = Just (Branch3 op l t r , bs)
-goUp (t, TernCrumb op [l,c] [] : bs) = Just (Branch3 op l c t , bs)
-
-goUp _ = Nothing
+goUp :: MZipper -> ThrowsError MZipper
+goUp (t, SingleCrumb op : bs) = Right (Branch1 op t, bs)
+goUp (t, LeftCrumb op r : bs) = Right (Branch2 op t r, bs)
+goUp (t, RightCrumb op l : bs) = Right (Branch2 op l t, bs)
+goUp (t, RhsCrumb lhs tmp body : bs) = Right (Let lhs t tmp body, bs)
+goUp (t, BodyCrumb lhs rhs tmp : bs) = Right (Let lhs rhs tmp t, bs)
+goUp (t, TernCrumbL op c r : bs) = Right (Branch3 op t c r , bs)
+goUp (t, TernCrumbC op l r : bs) = Right (Branch3 op l t r , bs)
+goUp (t, TernCrumbR op l c : bs) = Right (Branch3 op l c t , bs)
+goUp (n, bs) = throwError $ BadCrumbs n ("going up: " ++ show bs)
 
 topMost :: MZipper -> MZipper
 topMost (t,[]) = (t,[])
-topMost z = topMost $ maybe z id (goUp z)
+topMost z = topMost $ trapError z id (goUp z)
 
-modify :: (Expr -> Maybe Expr) -> MZipper -> MZipper
-modify f (t, bs) = case (f t) of
-  Just a -> (a, bs)
-  Nothing -> (t, bs)
 
 zipperToTree :: MZipper -> Expr
 zipperToTree (n, _) = n
@@ -88,22 +86,24 @@ zipperToTree (n, _) = n
 -- ignoring the zipper aspect entirely (so we're not passing around
 -- pieces of the old trees which we then ignore). I haven't done this
 -- yet because it's messy, and it's not clear this is a bottleneck.
-recreateZipper :: Breadcrumbs -> Maybe MZipper -> Maybe MZipper
-recreateZipper (LeftCrumb _ _:bs) (Just z) = recreateZipper bs (goLeft z)
-recreateZipper ((RightCrumb _ _):bs) (Just z) = recreateZipper bs (goRight z)
-recreateZipper ((SingleCrumb _):bs) (Just z) = recreateZipper bs (goDown z)
-recreateZipper ((TernCrumb _ _ _):bs) (Just z) = recreateZipper bs (goDown z)
-recreateZipper ((RhsCrumb _ _ _):bs) (Just z) = recreateZipper bs (goLeft z)
-recreateZipper ((BodyCrumb _ _ _):bs) (Just z) = recreateZipper bs (goRight z)
+recreateZipper :: Breadcrumbs -> ThrowsError MZipper -> ThrowsError MZipper
+recreateZipper (LeftCrumb _ _:bs) (Right z) = recreateZipper bs (goLeft z)
+recreateZipper ((RightCrumb _ _):bs) (Right z) = recreateZipper bs (goRight z)
+recreateZipper ((SingleCrumb _):bs) (Right z) = recreateZipper bs (goDown z)
+recreateZipper ((TernCrumbL _ _ _):bs) (Right z) = recreateZipper bs (goLeft z)
+recreateZipper ((TernCrumbC _ _ _):bs) (Right z) = recreateZipper bs (goDown z)
+recreateZipper ((TernCrumbR _ _ _):bs) (Right z) = recreateZipper bs (goRight z)
+recreateZipper ((RhsCrumb _ _ _):bs) (Right z) = recreateZipper bs (goLeft z)
+recreateZipper ((BodyCrumb _ _ _):bs) (Right z) = recreateZipper bs (goRight z)
 recreateZipper [] z = z 
-recreateZipper _ Nothing = Nothing
+recreateZipper _ z = z 
 
 
 -----------------------------------------------------------------
 -- Main optimizer logic
 
 optimize :: Expr -> SymbolTable -> ThrowsError (Expr, Int)
-optimize expr tbl = do beam <- beamSearch 10 10 1 tbl [(expr, 0)]
+optimize expr tbl = do beam <- beamSearch 5 20 2 tbl [(expr, 0)]
                        return $ head beam
 
 ----------------------------------------------------------------
@@ -148,16 +148,15 @@ reOptimizeOnce rw tbl ((t, score):ts) = do localDeltas <- rw tbl t
                                            let globalDeltas =  [(r, score+ds) | (r, ds) <- localDeltas] in
                                                return $ globalDeltas ++ newTs
 
-
 ----------------------------------------------------------------
 
 -- clean up tmp variables:
 --  - first split the program into lists of tmp and non-tmp statements
---  - for each non-tmp statement, make a list of all the 
+--  - for each non-tmp statement, make a list of all the
 
 variablesUsed :: Expr -> [VarName] -> [VarName]
 variablesUsed (Leaf a) vs = a:vs
-variablesUsed (IdentityLeaf _ ) vs = vs 
+variablesUsed (IdentityLeaf _ ) vs = vs
 variablesUsed (Branch1 _ a ) vs = variablesUsed a vs
 variablesUsed (Branch2 _ a b) vs = variablesUsed b (variablesUsed a vs)
 variablesUsed (Branch3 _ a b c) vs = variablesUsed c (variablesUsed b (variablesUsed a vs))
@@ -181,24 +180,25 @@ type SubExprMap = MultiMap.MultiMap Expr Breadcrumbs
 -- build a subexpression map for a given expression
 buildSubexpressionMap :: SubExprMap  -> MZipper -> SubExprMap
 buildSubexpressionMap smap z@( n@(Branch1 _ _), bs) = 
-                      let childMap = maybe smap (buildSubexpressionMap smap) (goDown z) in
+                      let childMap = trapError smap (buildSubexpressionMap smap) (goDown z) in
                       MultiMap.insert n bs childMap 
 buildSubexpressionMap smap z@( n@(Branch2 _ _ _), bs) = 
-                      let leftMap = maybe smap (buildSubexpressionMap smap) (goLeft z)
-                          rightMap = maybe leftMap (buildSubexpressionMap leftMap) (goRight z) in
+                      let leftMap = trapError smap (buildSubexpressionMap smap) (goLeft z)
+                          rightMap = trapError leftMap (buildSubexpressionMap leftMap) (goRight z) in
                       MultiMap.insert n bs rightMap 
 buildSubexpressionMap smap z@( n@(Let _ _ _ _), bs) = 
-                      let leftMap = maybe smap (buildSubexpressionMap smap) (goLeft z)
-                          rightMap = maybe leftMap (buildSubexpressionMap leftMap) (goRight z) in
+                      let leftMap = trapError smap (buildSubexpressionMap smap) (goLeft z)
+                          rightMap = trapError leftMap (buildSubexpressionMap leftMap) (goRight z) in
                       rightMap  -- don't actually include the 'let' itself as a subexpression that can
                                 -- be factored out
 buildSubexpressionMap smap z@( n@(Branch3 _ _ _ _), bs) = 
-                      let leftMap = maybe smap (buildSubexpressionMap smap) (goLeft z)
-                          centerMap = maybe leftMap (buildSubexpressionMap leftMap) (goDown z)
-                          rightMap = maybe centerMap (buildSubexpressionMap centerMap) (goRight z) in
+                      let leftMap = trapError smap (buildSubexpressionMap smap) (goLeft z)
+                          centerMap = trapError leftMap (buildSubexpressionMap leftMap) (goDown z)
+                          rightMap = trapError centerMap (buildSubexpressionMap centerMap) (goRight z) in
                       MultiMap.insert n bs rightMap 
 buildSubexpressionMap smap (Leaf _ , _) = smap
 buildSubexpressionMap smap (n@(IdentityLeaf _), bs) = smap
+
 
 -- generate a list of all common subexpressions: expressions that occur at least twice
 commonSubExpressions :: SubExprMap -> [(Expr, [Breadcrumbs])]
@@ -220,10 +220,8 @@ chooseTmpVarname e = let varsUsed = mkUniq (variablesUsed e [])
 -- return the expression in which the subexpression is replaced by a leaf node with the given
 -- variable name.
 replaceSubExp :: Expr -> Breadcrumbs -> VarName -> ThrowsError Expr
-replaceSubExp e bs newVar = let newZipper = recreateZipper (reverse bs) (Just (e, [])) in
-                            case newZipper of
-                            (Just z) -> return $ reconstructTree z (Leaf newVar)
-                            Nothing -> throwError $ BadCrumbs e
+replaceSubExp e bs newVar = do newZipper <- recreateZipper (reverse bs) (Right (e, []))
+                               return $ reconstructTree newZipper (Leaf newVar)
 
 -- iterate the previous function
 replaceSubExprs :: Expr -> [Breadcrumbs] -> VarName -> ThrowsError Expr
@@ -237,32 +235,32 @@ replaceSubExprs e (bs:bss) newVar = do replaced <- replaceSubExp e bs newVar
 tblMeetsDeps deps tbl = and [Map.member d tbl | d <- deps]
 
 -- insert a 'let' expression for the new subexpression in the highest legal place
-insertCommonDef :: SymbolTable -> Expr ->  VarName -> Expr -> ThrowsError Expr
+insertCommonDef :: SymbolTable -> Expr ->  VarName -> Expr -> ThrowsError (SymbolTable, Expr)
 insertCommonDef tbl e lhs rhs = let dependents = mkUniq $ variablesUsed rhs [] in
-                                do (sube, bs) <- if tblMeetsDeps dependents tbl then Right (e, [])
-                                                 else findInsertionPoint dependents tbl (Right (e, []))
-                                   return $ reconstructTree (sube, bs) (Let lhs rhs True sube)
+                                do (ntbl, (sube, bs)) <- if tblMeetsDeps dependents tbl then Right (tbl, (e, []))
+                                                         else findInsertionPoint dependents tbl (e, [])
+                                   return $ (ntbl, reconstructTree (sube, bs) (Let lhs rhs True sube))
 
 -- descend through an expression. whenever we see a 'let' expression, 
 -- check to see if all dependencies are now met. if so, the insertion
 -- point is just below the 'let'. 
 -- HACK: this currently assumes that 'let's  only occur at the
 -- top of an expression. I really need to guarantee this in the type system. 
-findInsertionPoint :: [VarName] -> SymbolTable -> ThrowsError MZipper -> ThrowsError MZipper
-findInsertionPoint deps tbl (Right z@( n@(Let _ _ _ _), _)) = 
+findInsertionPoint :: [VarName] -> SymbolTable -> MZipper -> ThrowsError (SymbolTable, MZipper)
+findInsertionPoint deps tbl z@( n@(Let _ _ _ _), _) = 
              do newtbl <- tblBind n tbl
-                if tblMeetsDeps deps newtbl then (maybeToError $ goRight z)
-                else findInsertionPoint deps newtbl (maybeToError $ goRight z)
-findInsertionPoint _ _ _ = throwError $ MaybeError "badly formed tree"
+                body <- goRight z
+                if tblMeetsDeps deps newtbl then return $ (newtbl, body)
+                else findInsertionPoint deps newtbl body
 
 
 -- High-level function to transform an expression, factoring out a subexpression
 -- as identitified by commonSubExpressions
 factorSubExpression :: Expr -> SymbolTable -> (Expr, [Breadcrumbs]) -> ThrowsError (Expr, Int)
-factorSubExpression e tbl (subexp, locs) = let tmpVar = chooseTmpVarname e in
+factorSubExpression e tbl (subexp, locs) = let tmpVar = chooseTmpVarname e in 
                                            do factoredOut <- replaceSubExprs e locs tmpVar
-                                              factoredIn <- insertCommonDef tbl factoredOut tmpVar subexp 
-                                              flops <- treeFLOPs subexp tbl 
+                                              (ntbl, factoredIn) <- insertCommonDef tbl factoredOut tmpVar subexp 
+                                              flops <- treeFLOPs subexp ntbl 
                                               let score = (1-(length locs)) * flops + letcost_CONST in
                                                   return $ (factoredIn, score)
 
@@ -292,22 +290,22 @@ optimizerTraversal _ (Leaf _, _) = []
 optimizerTraversal _ (IdentityLeaf _, _) = []
 optimizerTraversal tbl z@( n@(Branch3 _ _ _ _), _) =
         (map (reconstructTreeScore z) (optimizeAtNode tbl n) ) ++
-        (maybe [] id (fmap (optimizerTraversal tbl) (goLeft z) )) ++
-        (maybe [] id (fmap (optimizerTraversal tbl) (goDown z) )) ++
-        (maybe [] id (fmap (optimizerTraversal tbl) (goRight z)))
+        (trapError [] id (fmap (optimizerTraversal tbl) (goLeft z) )) ++
+        (trapError [] id (fmap (optimizerTraversal tbl) (goDown z) )) ++
+        (trapError [] id (fmap (optimizerTraversal tbl) (goRight z)))
 optimizerTraversal tbl z@( n@(Branch2 _ _ _), _) =
         (map (reconstructTreeScore z) (optimizeAtNode tbl n) ) ++
-        (maybe [] id (fmap (optimizerTraversal tbl) (goLeft z) )) ++
-        (maybe [] id (fmap (optimizerTraversal tbl) (goRight z)))
+        (trapError [] id (fmap (optimizerTraversal tbl) (goLeft z) )) ++
+        (trapError [] id (fmap (optimizerTraversal tbl) (goRight z)))
 optimizerTraversal tbl z@( n@(Let _ _ _ _), _) =
         (map (reconstructTreeScore z) (optimizeAtNode tbl n) ) ++
-        (maybe [] id (fmap (optimizerTraversal tbl) (goLeft z) )) ++
-        (maybe [] id (fmap (optimizerTraversal boundTbl ) (goRight z)))
+        (trapError [] id (fmap (optimizerTraversal tbl) (goLeft z) )) ++
+        (trapError [] id (fmap (optimizerTraversal boundTbl ) (goRight z)))
         where
         (Right boundTbl) = tblBind n tbl
 optimizerTraversal tbl z@( n@(Branch1 _ _), _) =
         (map (reconstructTreeScore z) (optimizeAtNode tbl n) ) ++
-        (maybe [] id (fmap (optimizerTraversal tbl) (goDown z)))
+        (trapError [] id (fmap (optimizerTraversal tbl) (goDown z)))
 
 -- Given a tree node, return a list of all transformed nodes that can
 -- be generated by applying optimization rules at that node, along with
@@ -377,6 +375,7 @@ type Rules = [Rule]
 binopSumRules :: Rules
 binopSumRules = [commonFactorLeft
                 , commonFactorRight
+--                , matrixInvLemmaRight
                 ]
 
 binopProductRules :: Rules
@@ -397,7 +396,8 @@ ternProductRules = [splitTernaryProductLeftAssoc
 inverseRules :: Rules
 inverseRules = [distributeInverse
                , swapInverseTranspose
-               , cancelDoubleInverse
+               , cancelDoubleInverse,
+                 matrixInvLemmaLeft
                ]
 
 transposeRules :: Rules
@@ -453,14 +453,14 @@ invToLinsolve tbl (Branch2 MProduct (Branch1 MInverse l) r) =
 invToLinsolve _ _ = Nothing
 
 mergeInverse :: Rule
-mergeInverse tbl (Branch2 MProduct (Branch1 MInverse l) r) = 
+mergeInverse tbl (Branch2 MProduct (Branch1 MInverse l) r) =
              let Right (Matrix n _ _) = treeMatrix l tbl in
-                 if (l == r) 
+                 if (l == r)
                     then Just (IdentityLeaf n)
                     else Nothing
-mergeInverse tbl (Branch2 MProduct l (Branch1 MInverse r)) = 
+mergeInverse tbl (Branch2 MProduct l (Branch1 MInverse r)) =
              let Right (Matrix n _ _) = treeMatrix l tbl in
-                 if (l == r) 
+                 if (l == r)
                     then Just (IdentityLeaf n)
                     else Nothing
 mergeInverse _ _ = Nothing
@@ -470,7 +470,7 @@ killIdentity :: Rule
 killIdentity _ (Branch2 MProduct (IdentityLeaf _) r) = Just r
 killIdentity _ (Branch2 MProduct l (IdentityLeaf _)) = Just l
 killIdentity _ _ = Nothing
-                  
+
 
 mergeToTernaryProduct :: Rule
 mergeToTernaryProduct _ (Branch2 MProduct (Branch2 MProduct l c) r) =
@@ -528,3 +528,16 @@ swapTransposeInverse :: Rule
 swapTransposeInverse _ (Branch1 MTranspose (Branch1 MInverse t)) =
         Just (Branch1 MInverse (Branch1 MTranspose t))
 swapTransposeInverse _ _ = Nothing
+
+matrixInvLemmaLeft :: Rule
+matrixInvLemmaLeft _ (Branch1 MInverse (Branch2 MSum a (Branch3 MTernaryProduct u c v))) =
+  Just (Branch2 MSum (Branch1 MInverse a) (Branch1 MNegate (Branch3 MTernaryProduct (Branch2 MProduct (Branch1 MInverse a) u ) ( Branch2 MSum (Branch1 MInverse c) (Branch3 MTernaryProduct v (Branch1 MInverse a) u) ) (Branch2 MProduct v (Branch1 MInverse a)) )))
+matrixInvLemmaLeft _ _ = Nothing
+
+-- matrixInvLemmaRight :: Rule
+--matrixInvLemmaRight tbl (Branch2 MSum (Branch1 MInverse A) (Branch1 MNegate (Branch3 MTernaryProduct (Branch2 MProduct (Branch1 MInverse B) C ) ( Branch2 MSum (Branch1 MInverse D) (Branch3 MTernaryProduct E (Branch1 MInverse F) G) ) (Branch2 MProduct H (Branch1 MInverse I)) ))) =if (A == B && A == F && A == I)&& (C == G)&& (D == H)
+-- matrixInvLemmaRight _ (Branch2 MSum ainv (Branch1 MNegate (Branch3 MTernaryProduct (Branch2 MProduct ainv2 u ) ( Branch2 MSum cinv (Branch3 MTernaryProduct v ainv3 u2) ) (Branch2 MProduct v2 ainv4) ))) =
+--   if (ainv == ainv2 && ainv == ainv3 && ainv == ainv4)&& (u == u2)&& (v == v2)
+--  then Just (Branch1 MInverse (Branch2 MSum (Branch1 MInverse ainv) (Branch3 MTernaryProduct u (Branch1 MInverse cinv) v)))
+--  else Nothing
+-- matrixInvLemmaRight _ _ = Nothing
