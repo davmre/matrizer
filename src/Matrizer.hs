@@ -21,8 +21,7 @@ dumpInfo :: SymbolTable -> Expr -> ThrowsError String
 dumpInfo tbl raw_prgm = do prgm <- subIdentity raw_prgm tbl
                            flops <- treeFLOPs prgm tbl
                            (optPrgm, dflops)  <- optimize prgm tbl
-                           optFlops <- treeFLOPs optPrgm tbl
-                           return $ "Preamble symbol table: " ++ show tbl ++ "\nCode parsed as:\n" ++ show prgm ++ "\nNaive FLOPs required: " ++ show flops ++ "\nNaive code generated:\n" ++ generateNumpy prgm ++ "\n\nOptimized flops required: " ++ show optFlops ++ " (pred " ++ show (flops+dflops) ++")\nOptimized program:\n" ++ show optPrgm ++ "\nOptimized code generated:\n" ++ generateNumpy optPrgm
+                           return $ "Preamble symbol table: " ++ show tbl ++ "\nCode parsed as:\n" ++ show prgm ++ "\nNaive FLOPs required: " ++ show flops ++ "\nNaive code generated:\n" ++ generateNumpy prgm ++ "\n\nOptimized flops required: " ++ show (flops+dflops)  ++"\nOptimized program:\n" ++ show optPrgm ++ "\nOptimized code generated:\n" ++ generateNumpy optPrgm
 
 dumpRaw tbl raw_prgm = do prgm <- subIdentity raw_prgm tbl
                           flops <- treeFLOPs prgm tbl      

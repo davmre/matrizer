@@ -103,7 +103,7 @@ recreateZipper _ Nothing = Nothing
 -- Main optimizer logic
 
 optimize :: Expr -> SymbolTable -> ThrowsError (Expr, Int)
-optimize expr tbl = do beam <- beamSearch 5 5 1 tbl [(expr, 0)]
+optimize expr tbl = do beam <- beamSearch 10 10 1 tbl [(expr, 0)]
                        return $ head beam
 
 ----------------------------------------------------------------
