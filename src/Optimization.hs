@@ -400,6 +400,7 @@ inverseRules = [distributeInverse
                , swapInverseTranspose
                , cancelDoubleInverse
                , matrixInvLemmaLeft
+               , invariantIdentity
                ]
 
 transposeRules :: Rules
@@ -487,6 +488,13 @@ killIdentity :: Rule
 killIdentity _ (Branch2 MProduct (IdentityLeaf _) r) = Just r
 killIdentity _ (Branch2 MProduct l (IdentityLeaf _)) = Just l
 killIdentity _ _ = Nothing
+
+-- I^-1 = I
+-- I' = I
+invariantIdentity :: Rule
+invariantIdentity _ (Branch1 MInverse (IdentityLeaf n)) = Just (IdentityLeaf n)
+invariantIdentity _ (Branch1 MTranspose (IdentityLeaf n)) = Just (IdentityLeaf n)
+invariantIdentity _ _ = Nothing
 
 -- (AB)C -> ABC
 -- A(BC) -> ABC

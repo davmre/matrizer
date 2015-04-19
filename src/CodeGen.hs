@@ -1,6 +1,6 @@
 module CodeGen where
 
-
+import qualified Data.Map as Map
 import MTypes
 
 -----------------------------------------------------
@@ -28,3 +28,31 @@ generateNumpy (Branch1 MNegate t) = "-" ++ (generateNumpy t)
 -- need to generate a body for such expressions
 generateNumpy (Let lhs rhs tmp (Leaf _)) = lhs ++ " = " ++ (generateNumpy rhs) 
 generateNumpy (Let lhs rhs tmp body) = lhs ++ " = " ++ (generateNumpy rhs) ++ "\n" ++ (generateNumpy body)
+
+---------------------------------------------------------------------------------------------------
+-- Code generation for MATLAB
+
+generateMatlab :: Expr -> String
+generateMatlab (Leaf a) = a
+generateMatlab (IdentityLeaf n) = "eye(" ++ (show n) ++ ")"
+generateMatlab (Branch3 MTernaryProduct t1 t2 t3) = "(" ++ (generateMatlab t1) ++ " * " ++
+                                                        (generateMatlab t2)  ++ " * " ++
+                                                        (generateMatlab t3) ++ ")"
+generateMatlab (Branch2 MLinSolve t1 t2) = "(" ++ (generateMatlab t1) ++
+                                          "\\" ++ (generateMatlab t2)  ++ ")"
+generateMatlab (Branch2 MCholSolve t1 t2) = "cholsolve(" ++ (generateMatlab t1) ++
+                                          ", " ++ (generateMatlab t2)  ++ ")"
+generateMatlab (Branch2 MProduct t1 t2) = "(" ++ (generateMatlab t1) ++
+                                          " * " ++ (generateMatlab t2)  ++ ")"
+generateMatlab (Branch2 MSum t1 (Branch1 MNegate t2)) = (generateMatlab t1) ++ " - " ++ (generateMatlab t2)
+generateMatlab (Branch2 MSum t1 t2) = "(" ++ (generateMatlab t1) ++ " + " ++ (generateMatlab t2) ++ ")"
+generateMatlab (Branch1 MInverse t) = "inv(" ++ (generateMatlab t) ++ ")"
+generateMatlab (Branch1 MTranspose t) = (generateMatlab t) ++ "'" -- caution: might we need parentheses here?
+generateMatlab (Branch1 MNegate t) = "-" ++ (generateMatlab t)
+
+generateMatlab (Let lhs rhs tmp (Leaf _)) = lhs ++ " = " ++ (generateMatlab rhs)  ++ "\n"
+generateMatlab (Let lhs rhs tmp body) = lhs ++ " = " ++ (generateMatlab rhs) ++ "\n" ++ (generateMatlab body) ++ ";"
+
+symTableMatlab :: SymbolTable -> String
+symTableMatlab tbl = foldl (++)  "" [tblEntry k m | (k,m) <- Map.toList tbl]  where
+  tblEntry k (Matrix n m _) = k ++ " = randn(" ++ (show n) ++ ", " ++ (show m) ++ ");\n"

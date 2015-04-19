@@ -104,7 +104,7 @@ instance Show MatrixSym where
 -- Datatype for errors --
 data MError = SizeMismatch BinOp Matrix Matrix
             | SizeMismatchTern TernOp Matrix Matrix Matrix
-            | WrongProperties BinOp [MProperty] [MProperty]
+            | WrongProperties BinOp [MProperty] [MProperty] Expr Expr
             | InvalidOp UnOp Matrix
             | UnboundName VarName
             | Default String
@@ -122,10 +122,10 @@ showError (SizeMismatchTern op m1 m2 m3) =
         "Invalid matrix dimensions for ternary operator '"
         ++ show op ++ "' applied to matrices " ++ showDim m1 ++ ", "
         ++ showDim m2 ++ ", " ++ showDim m3
-showError (WrongProperties op props1 props2) =
+showError (WrongProperties op props1 props2 t1 t2) =
         "Operator '" ++ show op
         ++ "' cannot apply to matrices with properties " ++ show props1
-        ++ ", " ++ show props2
+        ++ ", " ++ show props2  ++ ", trees:\n" ++ (show t1) ++ "\n" ++ (show t2)
 showError (InvalidOp op m) =
         "Invalid operation '" ++ show op ++ "' on matrix " ++ show m
 showError (UnboundName s)  = "Undefined matrix name " ++ s

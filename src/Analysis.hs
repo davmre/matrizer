@@ -146,7 +146,7 @@ updateMatrixBinaryOp sizeCheck propCheck newSize op t1 t2 tbl =
                if sizeCheck r1 c1 r2 c2
                   then if propCheck props1 props2
                        then return $ (uncurry Matrix) (newSize r1 c1 r2 c2) (updateBinaryProps op props1 props2 t1 t2)
-                       else throwError $ WrongProperties op props1 props2
+                       else throwError $ WrongProperties op props1 props2 t1 t2
                   else throwError $ SizeMismatch op m1 m2
 
 
