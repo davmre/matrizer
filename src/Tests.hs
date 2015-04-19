@@ -36,7 +36,7 @@ runTestFile :: String -> IO ()
 runTestFile fname = do (tbl, test_tree, soln_tree) <- readTest fname
                        case runTest (tbl, test_tree, soln_tree) of
                             (Right (f1, f2, f3)) -> putStrLn $ fname ++ ": naive " ++ show f1 ++ " target " ++ show f2 ++ " optimized " ++ show f3 ++ (if (f3 < f2) then " WIN!****" else if (f3 == f2) then " PASS" else "FAIL")
-                            (Left err) -> putStrLn (fname ++ ": " ++ (show err))
+                            (Left err) -> putStrLn (fname ++ ": " ++ (show err) ++ " ERROR***")
 
 type OptimizerTest = (SymbolTable, Expr, Expr)
 readTest :: String -> IO OptimizerTest
@@ -46,8 +46,8 @@ readTest fname = do test <- readFile (combine testdir fname)
                         t2 = readInput soln
                     case (t1, t2) of
                          (Right (tbl, test_tree),  Right (_, soln_tree)) -> return (tbl, test_tree, soln_tree)
-                         (Left test_err, _) -> error (show test_err)
-                         (_, Left soln_err) -> error (show soln_err)
+                         (Left test_err, _) -> error (show test_err ++ " ERROR***")
+                         (_, Left soln_err) -> error (show soln_err ++ " ERROR***")
 
 runTest :: OptimizerTest -> ThrowsError (Int, Int, Int)
 runTest (tbl, t1, t2) = do st1 <- subIdentity t1 tbl

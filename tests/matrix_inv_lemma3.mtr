@@ -1,0 +1,10 @@
+A : n x n
+C : m x m
+U : n x m
+V : m x n
+
+
+n ~ 10
+m ~ 1000
+
+D = A + -(A U (C + V * A * U)^-1 V A)

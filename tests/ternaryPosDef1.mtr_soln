@@ -1,0 +1,2 @@
+tmp invA = A^-1;
+r = invA * (B\(invA' * x))
