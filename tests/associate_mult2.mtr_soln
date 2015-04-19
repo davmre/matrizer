@@ -1,0 +1,3 @@
+tmp r1 = y' y ;
+tmp r2 = y' * psi1 * (psi2 + Kuu)^-1 * psi1' * y;
+r = r1 + r2;

@@ -8,6 +8,7 @@ import Parsing
 import Optimization
 import Analysis
 import CodeGen
+import Tests 
 
 ---------------------------------------------------------------
 
@@ -34,9 +35,13 @@ errorStr ts = case ts of
 
 main :: IO ()
 main = do args <- getArgs
-          let infile = head args
-          inp <- readFile infile
-          case readInput inp of
-            Left err -> print err
-            Right (tbl, tree) -> putStrLn $ errorStr $ dumpInfo tbl tree
+          if (head args) == "test"
+          then runTests
+          else runFile $ head args
+
+runFile :: String -> IO ()
+runFile infile = do inp <- readFile infile
+                    case readInput inp of
+                         Left err -> print err
+                         Right (tbl, tree) -> putStrLn $ errorStr $ dumpInfo tbl tree
             
