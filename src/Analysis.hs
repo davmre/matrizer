@@ -222,6 +222,7 @@ updateProps MNegate    = intersect [Diagonal, Symmetric]
 -- http://www.prism.gatech.edu/~gtg031s/files/Floating_Point_Handbook_v13.pdf
 
 letcost_CONST = 1 -- charge 1 FLOP for an assignment statement, arbitrarily
+transposecost_CONST = 1
 
 treeFLOPs :: Expr -> SymbolTable -> ThrowsError Int
 treeFLOPs (Leaf _) _ = return 0
@@ -261,7 +262,8 @@ treeFLOPs (Branch1 MInverse t) tbl =
         do (Matrix r _ _) <- treeMatrix t tbl
            flops <- treeFLOPs t tbl
            return $ (3 * r * r * r) `quot` 4 + flops
-treeFLOPs (Branch1 MTranspose t) tbl = treeFLOPs t tbl
+treeFLOPs (Branch1 MTranspose t) tbl = do n <- treeFLOPs t tbl 
+                                          return $ n + transposecost_CONST
 treeFLOPs (Branch1 MNegate t) tbl = treeFLOPs t tbl
 treeFLOPs (Let lhs rhs tmp body) tbl = do letMatrix <- treeMatrix rhs tbl
                                           letFLOPs <- treeFLOPs rhs tbl

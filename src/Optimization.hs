@@ -103,7 +103,7 @@ recreateZipper _ z = z
 -- Main optimizer logic
 
 optimize :: Expr -> SymbolTable -> ThrowsError (Expr, Int)
-optimize expr tbl = do beam <- beamSearch 5 10 4 tbl [(expr, 0)]
+optimize expr tbl = do beam <- beamSearch 5 20 4 tbl [(expr, 0)]
                        return $ head beam
 
 ----------------------------------------------------------------
@@ -386,6 +386,8 @@ binopProductRules = [assocMult
                     , factorTranspose
                     , mergeInverse
                     , killIdentity
+                    , swapTranspose
+                    , distributeMult
                     ]
 
 ternProductRules :: Rules
@@ -403,6 +405,7 @@ inverseRules = [distributeInverse
 transposeRules :: Rules
 transposeRules = [distributeTranspose
                  , swapTransposeInverse
+                 , cancelDoubleTranspose
                  ]
 
 letExpRules :: Rules
@@ -424,12 +427,14 @@ groundSubExprHelper (Branch3 op a b c) v subexpr = Branch3 op (groundSubExprHelp
 groundSubExprHelper (Let lhs rhs tmp body) v subexpr = Let lhs (groundSubExprHelper rhs v subexpr) tmp (groundSubExprHelper body v subexpr)
 groundSubExprHelper e v subexpr = e
 
-
+-- (AB)C -> A(BC)
+-- A(BC) -> (AB)C
 assocMult :: Rule
 assocMult _ (Branch2 MProduct (Branch2 MProduct l c) r) = Just (Branch2 MProduct l (Branch2 MProduct c r))
 assocMult _ (Branch2 MProduct l (Branch2 MProduct c r)) = Just (Branch2 MProduct (Branch2 MProduct l c) r)
 assocMult _ _ = Nothing
 
+-- (AC + BC) -> (A+B)C
 commonFactorRight :: Rule
 commonFactorRight _ (Branch2 MSum (Branch2 MProduct l1 l2) (Branch2 MProduct r1 r2)) =
   if (l2 == r2)
@@ -437,6 +442,7 @@ commonFactorRight _ (Branch2 MSum (Branch2 MProduct l1 l2) (Branch2 MProduct r1 
      else Nothing
 commonFactorRight _ _ = Nothing
 
+-- (AB + AC) -> A(B+C)
 commonFactorLeft :: Rule
 commonFactorLeft _ (Branch2 MSum (Branch2 MProduct l1 l2) (Branch2 MProduct r1 r2)) =
   if (l1 == r1)
@@ -444,6 +450,14 @@ commonFactorLeft _ (Branch2 MSum (Branch2 MProduct l1 l2) (Branch2 MProduct r1 r
      else Nothing
 commonFactorLeft _ _ = Nothing
 
+-- A(B+C) -> AB+AC
+-- (A+B)C -> AC+BC
+distributeMult :: Rule
+distributeMult _ (Branch2 MProduct l (Branch2 MSum c r)) = Just (Branch2 MSum (Branch2 MProduct l c) (Branch2 MProduct l r) )
+distributeMult _ (Branch2 MProduct (Branch2 MSum l c) r) = Just (Branch2 MSum (Branch2 MProduct l r) (Branch2 MProduct c r) )
+distributeMult _ _ = Nothing
+
+-- A^-1 B -> A\B
 invToLinsolve :: Rule
 invToLinsolve tbl (Branch2 MProduct (Branch1 MInverse l) r) =
         let Right (Matrix _ _ props) = treeMatrix l tbl in
@@ -452,6 +466,8 @@ invToLinsolve tbl (Branch2 MProduct (Branch1 MInverse l) r) =
                 else Just (Branch2 MLinSolve l r)
 invToLinsolve _ _ = Nothing
 
+-- A^-1 A -> I
+-- AA^-1 -> I
 mergeInverse :: Rule
 mergeInverse tbl (Branch2 MProduct (Branch1 MInverse l) r) =
              let Right (Matrix n _ _) = treeMatrix l tbl in
@@ -465,13 +481,15 @@ mergeInverse tbl (Branch2 MProduct l (Branch1 MInverse r)) =
                     else Nothing
 mergeInverse _ _ = Nothing
 
-
+-- AI -> A
+-- IA -> A
 killIdentity :: Rule
 killIdentity _ (Branch2 MProduct (IdentityLeaf _) r) = Just r
 killIdentity _ (Branch2 MProduct l (IdentityLeaf _)) = Just l
 killIdentity _ _ = Nothing
 
-
+-- (AB)C -> ABC
+-- A(BC) -> ABC
 mergeToTernaryProduct :: Rule
 mergeToTernaryProduct _ (Branch2 MProduct (Branch2 MProduct l c) r) =
         Just (Branch3 MTernaryProduct l c r)
@@ -479,17 +497,19 @@ mergeToTernaryProduct _ (Branch2 MProduct l (Branch2 MProduct c r)) =
         Just (Branch3 MTernaryProduct l c r)
 mergeToTernaryProduct _ _ = Nothing
 
+-- ABC -> (AB)C
 splitTernaryProductLeftAssoc :: Rule
 splitTernaryProductLeftAssoc _ (Branch3 MTernaryProduct l c r) =
         Just (Branch2 MProduct (Branch2 MProduct l c) r)
 splitTernaryProductLeftAssoc _ _ = Nothing
 
+-- ABC -> A(BC)
 splitTernaryProductRightAssoc :: Rule
 splitTernaryProductRightAssoc _ (Branch3 MTernaryProduct l c r) =
         Just (Branch2 MProduct l (Branch2 MProduct c r))
 splitTernaryProductRightAssoc _ _ = Nothing
 
--- we can do (AB)^-1 = B^-1 A^-1 as long as A and B are both square
+-- (AB)^-1 -> B^-1 A^-1 as long as A and B are both square
 distributeInverse :: Rule
 distributeInverse tbl (Branch1 MInverse (Branch2 MProduct l r)) =
                   let Right (Matrix lr lc _) = treeMatrix l tbl
@@ -500,40 +520,59 @@ distributeInverse tbl (Branch1 MInverse (Branch2 MProduct l r)) =
                   else Nothing
 distributeInverse _ _ = Nothing
 
+-- B^-1 A^-1 -> (AB)^-1
 factorInverse :: Rule
 factorInverse _ (Branch2 MProduct (Branch1 MInverse r) (Branch1 MInverse l)) =
         Just (Branch1 MInverse (Branch2 MProduct l r))
 factorInverse _ _ = Nothing
 
+-- A^-1^-1 -> A
 cancelDoubleInverse ::Rule
 cancelDoubleInverse _ (Branch1 MInverse (Branch1 MInverse t)) = Just t
 cancelDoubleInverse _ _ = Nothing
 
+-- (AB)' -> (B'A')
 distributeTranspose :: Rule
 distributeTranspose _ (Branch1 MTranspose (Branch2 MProduct l r)) =
         Just (Branch2 MProduct (Branch1 MTranspose r) (Branch1 MTranspose l))
 distributeTranspose _ _ = Nothing
 
+-- (B'A') -> (AB)'
 factorTranspose :: Rule
 factorTranspose _ (Branch2 MProduct (Branch1 MTranspose r) (Branch1 MTranspose l)) =
         Just (Branch1 MTranspose (Branch2 MProduct l r))
 factorTranspose _ _ = Nothing
 
+-- (A'B) -> (B'A)'
+-- (this rule is its own inverse when combined with cancelDoubleTranspose)
+swapTranspose :: Rule
+swapTranspose _ (Branch2 MProduct (Branch1 MTranspose l) r) = Just (Branch1 MTranspose (Branch2 MProduct (Branch1 MTranspose r) l))
+swapTranspose _ _ = Nothing
+
+-- A'' = A
+cancelDoubleTranspose :: Rule
+cancelDoubleTranspose _ (Branch1 MTranspose (Branch1 MTranspose t)) = Just t
+cancelDoubleTranspose _ _ = Nothing
+
+-- A'^-1 -> A^-1'
 swapInverseTranspose :: Rule
 swapInverseTranspose _ (Branch1 MInverse (Branch1 MTranspose t)) =
         Just (Branch1 MTranspose (Branch1 MInverse t))
 swapInverseTranspose _ _ = Nothing
 
+-- A^-1' -> A'^-1
 swapTransposeInverse :: Rule
 swapTransposeInverse _ (Branch1 MTranspose (Branch1 MInverse t)) =
         Just (Branch1 MInverse (Branch1 MTranspose t))
 swapTransposeInverse _ _ = Nothing
 
+-- (A+UCV)^-1 -> A^-1 - A^-1 U (C^-1 + V A^-1 U)^-1 V A^-1
 matrixInvLemmaLeft :: Rule
 matrixInvLemmaLeft _ (Branch1 MInverse (Branch2 MSum a (Branch3 MTernaryProduct u c v))) =
   Just (Branch2 MSum (Branch1 MInverse a) (Branch1 MNegate (Branch3 MTernaryProduct (Branch2 MProduct (Branch1 MInverse a) u ) (Branch1 MInverse ( Branch2 MSum (Branch1 MInverse c) (Branch3 MTernaryProduct v (Branch1 MInverse a) u) ) ) (Branch2 MProduct v (Branch1 MInverse a)) )))
 matrixInvLemmaLeft _ _ = Nothing
 
+--  A^-1 - A^-1 U (C^-1 + V A^-1 U)^-1 V A^-1 -> (A+UCV)^-1
 matrixInvLemmaRight :: Rule
 matrixInvLemmaRight tbl (Branch2 MSum (Branch1 MInverse a) (Branch1 MNegate (Branch3 MTernaryProduct (Branch2 MProduct (Branch1 MInverse b) c ) (Branch1 MInverse ( Branch2 MSum (Branch1 MInverse d) (Branch3 MTernaryProduct e (Branch1 MInverse f) g) )) (Branch2 MProduct h (Branch1 MInverse i)) ))) =
                     if (a == b && a == f && a == i)&& (c == g)&& (e == h) then
