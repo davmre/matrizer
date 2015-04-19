@@ -27,6 +27,7 @@ data BinOp = MProduct
 data UnOp = MInverse
           | MTranspose
           | MNegate
+          | MChol
           deriving (Eq, Ord, Enum)
 
 -- AST pretty printing
@@ -44,6 +45,7 @@ instance Show UnOp where
     show MInverse = "inv"
     show MTranspose = "transpose"
     show MNegate = "neg"
+    show MChol = "chol"
 
 instance Show Expr where
     show (Leaf a) = a
@@ -66,6 +68,7 @@ data Matrix = Matrix Int Int [MProperty]
 data MProperty = Symmetric
                | PosDef
                | Diagonal
+               | LowerTriangular
                deriving (Eq, Enum)
 data PreambleLine = MatrixLine VarName MatrixSym
                   | SymbolLine Char Int
@@ -86,6 +89,7 @@ instance Show MProperty where
     show Symmetric = "symmetric"
     show PosDef = "posdef"
     show Diagonal = "diag"
+    show LowerTriangular = "ltri"
 
 instance Show Matrix where
     show (Matrix r c props) = show r ++ "x" ++ show c ++ " " ++ show props
@@ -105,6 +109,7 @@ instance Show MatrixSym where
 data MError = SizeMismatch BinOp Matrix Matrix
             | SizeMismatchTern TernOp Matrix Matrix Matrix
             | WrongProperties BinOp [MProperty] [MProperty] Expr Expr
+            | WrongProperties1 UnOp [MProperty] Expr
             | InvalidOp UnOp Matrix
             | UnboundName VarName
             | Default String
@@ -126,6 +131,10 @@ showError (WrongProperties op props1 props2 t1 t2) =
         "Operator '" ++ show op
         ++ "' cannot apply to matrices with properties " ++ show props1
         ++ ", " ++ show props2  ++ ", trees:\n" ++ (show t1) ++ "\n" ++ (show t2)
+showError (WrongProperties1 op props t) =
+        "Operator '" ++ show op
+         ++ "' cannot apply to matrix with properties " ++ show props
+          ++ ", " ++ ", trees:\n" ++ (show t) ++ "\n"
 showError (InvalidOp op m) =
         "Invalid operation '" ++ show op ++ "' on matrix " ++ show m
 showError (UnboundName s)  = "Undefined matrix name " ++ s
