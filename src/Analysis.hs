@@ -236,6 +236,9 @@ treeFLOPs (Branch2 MProduct t1 t2) tbl =
            flops1 <- treeFLOPs t1 tbl
            flops2 <- treeFLOPs t2 tbl
            return $ r1 * c2 * (2*c1 - 1) + flops1 + flops2
+
+-- assume LU decomposition: 2/3n^3 to do the decomposition,
+-- plus 2n^2 to solve for each column of the result.
 treeFLOPs (Branch2 MLinSolve t1 t2) tbl =
         do (Matrix r1 _ _) <- treeMatrix t1 tbl
            (Matrix _ c2 _) <- treeMatrix t2 tbl
@@ -243,8 +246,6 @@ treeFLOPs (Branch2 MLinSolve t1 t2) tbl =
            flops2 <- treeFLOPs t2 tbl
            return $ 2 * ((r1 * r1 * r1) `quot` 3 + (c2 * r1 * r1) ) +
                 flops1 + flops2
-                                             -- assume LU decomposition: 2/3n^3 to do the decomposition,
-                                             -- plus 2n^2 to solve for each column of the result.
 
 treeFLOPs (Branch2 MCholSolve t1 t2) tbl =
         do (Matrix r1 _ _) <- treeMatrix t1 tbl
@@ -259,9 +260,11 @@ treeFLOPs (Branch2 MSum t1 t2) tbl =
            flops2 <- treeFLOPs t2 tbl
            return $ r1 * c1 + flops1 + flops2
 treeFLOPs (Branch1 MInverse t) tbl =
-        do (Matrix r _ _) <- treeMatrix t tbl
+        do (Matrix r _ props) <- treeMatrix t tbl
            flops <- treeFLOPs t tbl
-           return $ (3 * r * r * r) `quot` 4 + flops
+           if LowerTriangular `elem` props
+           then return $ (r * r + r) `quot` 2 + flops -- inverse of a triangular matrix by back substitution, http://mathforcollege.com/nm/simulations/nbm/04sle/nbm_sle_sim_inversecomptime.pdf
+           else return $ (3 * r * r * r) `quot` 4 + flops
 treeFLOPs (Branch1 MTranspose t) tbl = do n <- treeFLOPs t tbl 
                                           return $ n + transposecost_CONST
 treeFLOPs (Branch1 MNegate t) tbl = treeFLOPs t tbl
