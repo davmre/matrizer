@@ -28,10 +28,12 @@ tblBind _ tbl = return tbl
 treeMatrix :: Expr -> SymbolTable -> ThrowsError Matrix
 treeMatrix (Leaf a) tbl = maybe (throwError $ UnboundName a) return (Map.lookup a tbl)
 treeMatrix (IdentityLeaf n) tbl = return $ Matrix n n [Symmetric, PosDef, Diagonal, LowerTriangular]
+treeMatrix (LiteralScalar x) tbl = return $ Matrix 1 1 [Symmetric, Diagonal, LowerTriangular]
 treeMatrix (Branch3 MTernaryProduct t1 t2 t3) tbl = updateMatrixTernaryOp ternProductSizeCheck ternProductNewSize MTernaryProduct t1 t2 t3 tbl
 treeMatrix (Branch2 MLinSolve t1 t2) tbl = updateMatrixBinaryOp linsolveSizeCheck truePropCheck linsolveNewSize MLinSolve t1 t2 tbl
 treeMatrix (Branch2 MCholSolve t1 t2) tbl = updateMatrixBinaryOp linsolveSizeCheck cholsolvePropCheck linsolveNewSize MCholSolve t1 t2 tbl
 treeMatrix (Branch2 MProduct t1 t2) tbl = updateMatrixBinaryOp prodSizeCheck truePropCheck prodNewSize MProduct t1 t2 tbl
+treeMatrix (Branch2 MScalarProduct t1 t2) tbl = updateMatrixBinaryOp scalarprodSizeCheck truePropCheck scalarprodNewSize MProduct t1 t2 tbl
 treeMatrix (Branch2 MSum t1 t2) tbl = updateMatrixBinaryOp sumSizeCheck truePropCheck sumNewSize MSum t1 t2 tbl
 treeMatrix (Branch1 MInverse t) tbl = updateMatrixUnaryOp squareCheck (const True) sameSize MInverse t tbl
 treeMatrix (Branch1 MTranspose t) tbl = updateMatrixUnaryOp trueCheck (const True) transSize MTranspose t tbl
@@ -54,29 +56,40 @@ idshape2 MLinSolve idOnRight n m = if idOnRight then n else m
 idshape2 MCholSolve idOnRight n m = if idOnRight then n else m
 
 
-subIdentity :: Expr -> SymbolTable -> ThrowsError Expr
-subIdentity (Leaf "I") _ = throwError $ AnalysisError "could not infer size of identity matrix"
-subIdentity (Leaf a) _ = return $ Leaf a
-subIdentity (IdentityLeaf n) _ = return $ IdentityLeaf n
-subIdentity (Branch1 op a) tbl = do newA <- subIdentity a tbl
-                                    return $ Branch1 op newA
-subIdentity (Branch2 op a (Leaf "I")) tbl = 
-                do newA <- subIdentity a tbl
+
+preprocess :: Expr -> SymbolTable -> ThrowsError Expr
+preprocess (Leaf "I") _ = throwError $ AnalysisError "could not infer size of identity matrix"
+preprocess (Leaf a) _ = return $ Leaf a
+preprocess (IdentityLeaf n) _ = return $ IdentityLeaf n
+preprocess (LiteralScalar n) _ = return $ LiteralScalar n
+preprocess (Branch1 op a) tbl = do newA <- preprocess a tbl
+                                   return $ Branch1 op newA
+preprocess (Branch2 op a (Leaf "I")) tbl = 
+                do newA <- preprocess a tbl
                    (Matrix n m _) <- treeMatrix newA tbl
-                   return $ Branch2 op newA (IdentityLeaf (idshape2 op True n m))
-subIdentity (Branch2 op (Leaf "I") b) tbl = 
-                do newB <- subIdentity b tbl
+                   preprocess (Branch2 op newA (IdentityLeaf (idshape2 op True n m))) tbl
+preprocess (Branch2 op (Leaf "I") b) tbl = 
+                do newB <- preprocess b tbl
                    (Matrix n m _) <- treeMatrix newB tbl
-                   return $ Branch2 op (IdentityLeaf (idshape2 op False n m)) newB
-subIdentity (Branch2 op a b) tbl = do newA <- subIdentity a tbl
-                                      newB <- subIdentity b tbl
-                                      return $ Branch2 op newA newB
-subIdentity (Branch3 _ _ _ _) _ = throwError $ AnalysisError "encountered a ternop while parsing identity matrices, but the parser should never produce ternops!"
-subIdentity (Let lhs rhs tmp body) tbl  = do newRHS <- subIdentity rhs tbl
-                                             letMatrix <- treeMatrix newRHS tbl
-                                             let newtbl = Map.insert lhs letMatrix tbl
-                                             newBody <- subIdentity body newtbl
-                                             return $ Let lhs newRHS tmp newBody
+                   preprocess (Branch2 op (IdentityLeaf (idshape2 op False n m)) newB) tbl
+preprocess (Branch2 MProduct a b) tbl = do newA <- preprocess a tbl
+                                           newB <- preprocess b tbl
+                                           (Matrix n1 m1 _) <- treeMatrix newA tbl
+                                           (Matrix n2 m2 _) <- treeMatrix newB tbl
+                                           if (n1==1 && m1==1) 
+                                           then return $ Branch2 MScalarProduct newA newB
+                                           else if (n2==1 && m2==1) 
+                                                then return $ Branch2 MScalarProduct newB newA
+                                           else return $ Branch2 MProduct newA newB
+preprocess (Branch2 op a b) tbl = do newA <- preprocess a tbl
+                                     newB <- preprocess b tbl
+                                     return $ Branch2 op newA newB
+preprocess (Branch3 _ _ _ _) _ = throwError $ AnalysisError "encountered a ternop while parsing identity matrices, but the parser should never produce ternops!"
+preprocess (Let lhs rhs tmp body) tbl  = do newRHS <- preprocess rhs tbl
+                                            letMatrix <- treeMatrix newRHS tbl
+                                            let newtbl = Map.insert lhs letMatrix tbl
+                                            newBody <- preprocess body newtbl
+                                            return $ Let lhs newRHS tmp newBody
 
 -----------------
 -- functions to check that matrices have the right properties to accept a given op
@@ -94,6 +107,7 @@ linsolveSizeCheck r1 c1 r2 _ = (r1 == r2) && (r1 == c1)
                   -- for now, let's say we can only apply linsolve to square matrices
 prodSizeCheck r1 c1 r2 _ = (c1 == r2)
 sumSizeCheck r1 c1 r2 c2 = (r1 == r2) && (c1 == c2)
+scalarprodSizeCheck r1 c1 r2 c2 = (r1==1 && c1==1)
 
 squareCheck = (==)
 trueCheck = const $ const True
@@ -107,6 +121,7 @@ transSize r c = (c, r)
 ternProductNewSize r1 c1 r2 c2 r3 c3 = (uncurry (prodNewSize r1 c1)) (prodNewSize r2 c2 r3 c3)
 linsolveNewSize _ c1 _ c2 = (c1, c2)
 prodNewSize r1 _ _ c2 = (r1, c2)
+scalarprodNewSize r1 c1 r2 c2 = (r2, c2)
 sumNewSize r1 c1 _ _ = (r1, c1)
 
 --------------------
@@ -148,7 +163,7 @@ updateMatrixBinaryOp sizeCheck propCheck newSize op t1 t2 tbl =
                   then if propCheck props1 props2
                        then return $ (uncurry Matrix) (newSize r1 c1 r2 c2) (updateBinaryProps op props1 props2 t1 t2)
                        else throwError $ WrongProperties op props1 props2 t1 t2
-                  else throwError $ SizeMismatch op m1 m2
+                  else throwError $ SizeMismatch op m1 m2 t1 t2
 
 
 updateMatrixUnaryOp :: (Int -> Int -> Bool)
@@ -177,6 +192,7 @@ updateBinaryClosedProps = (intersect .) . intersect
 updateBinaryProps :: BinOp -> [MProperty] -> [MProperty] -> Expr -> Expr -> [MProperty]
 updateBinaryProps MProduct props1 props2 t1 t2 = nub $ (updateBinaryClosedProps [Diagonal, LowerTriangular] props1 props2) ++
                                                        if (productPosDef t1 t2) then [PosDef] else []
+updateBinaryProps MScalarProduct props1 props2 t1 t2 = intersect [Symmetric, Diagonal, LowerTriangular] props2 
 updateBinaryProps MSum props1 props2 _ _ = updateBinaryClosedProps [Diagonal, Symmetric, PosDef, LowerTriangular] props1 props2
 updateBinaryProps MLinSolve props1 props2 _ _ = updateBinaryClosedProps [] props1 props2
 updateBinaryProps MCholSolve props1 props2 _ _ = updateBinaryClosedProps [] props1 props2
@@ -228,6 +244,7 @@ transposecost_CONST = 1
 treeFLOPs :: Expr -> SymbolTable -> ThrowsError Int
 treeFLOPs (Leaf _) _ = return 0
 treeFLOPs (IdentityLeaf n) _ = return $ n * n
+treeFLOPs (LiteralScalar n) _ = return 0
 treeFLOPs (Branch3 MTernaryProduct t1 t2 t3) tbl =
         treeFLOPs (Branch2 MProduct (Branch2 MProduct t1 t2) t3) tbl
 treeFLOPs (Branch2 MProduct t1 t2) tbl =
@@ -236,6 +253,11 @@ treeFLOPs (Branch2 MProduct t1 t2) tbl =
            flops1 <- treeFLOPs t1 tbl
            flops2 <- treeFLOPs t2 tbl
            return $ r1 * c2 * (2*c1 - 1) + flops1 + flops2
+treeFLOPs (Branch2 MScalarProduct t1 t2) tbl =
+        do (Matrix r c _) <- treeMatrix t2 tbl
+           flops1 <- treeFLOPs t1 tbl
+           flops2 <- treeFLOPs t2 tbl
+           return $ r*c + flops1 + flops2
 
 -- assume LU decomposition: 2/3n^3 to do the decomposition,
 -- plus 2n^2 to solve for each column of the result.

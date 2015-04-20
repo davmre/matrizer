@@ -1,6 +1,6 @@
 module Parsing where
 
-import Control.Applicative((<*))
+import Control.Applicative hiding ((<|>), many, optional)
 import Data.Maybe
 import qualified Data.Map as Map
 import Text.Parsec
@@ -52,11 +52,18 @@ table = [ [Prefix (m_reservedOp "-" >> return (Branch1 MNegate))] -- note: this 
         , [Infix (m_reservedOp "+" >> return (Branch2 MSum)) AssocLeft]
         ]
 
+
+number = many1 digit
+
+mfloat :: Parser Float
+mfloat = fmap rd $ (++) <$> number <*> decimal
+         where rd      = read :: String -> Float
+               decimal = option "" $ (:) <$> char '.' <*> number
+
 term :: Parser Expr
-term = m_parens exprparser <|> matrix
-     --where matrix = do s <- m_identifier
-     --                  return $ Leaf s
-     where matrix = m_identifier >>= return . Leaf
+term = m_parens exprparser <|> matrix <|> scalar
+       where matrix = m_identifier >>= return . Leaf
+             scalar = mfloat >>= return . LiteralScalar
 
 exprparser :: Parser Expr
 exprparser = buildExpressionParser table term <?> "expression"
@@ -67,6 +74,9 @@ exprparser = buildExpressionParser table term <?> "expression"
 -----------------------------------------------------
 
 data ParserStmt = Assign VarName Expr Bool
+instance Show ParserStmt where
+    show (Assign v rhs tmp) = show v ++ " := " ++ show rhs ++ if tmp then " #tmp" else ""
+
 
 mainparser :: Parser Expr
 mainparser = m_whiteSpace >> programparser <* eof
@@ -138,7 +148,7 @@ parseSymbolDef :: Parser PreambleLine
 parseSymbolDef = do linespaces
                     c <- letter
                     linespaces
-                    _ <- oneOf "=~"
+                    _ <- oneOf "~"
                     linespaces
                     n <- liftM read $ many1 digit
                     return $ SymbolLine c n

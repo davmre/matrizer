@@ -12,6 +12,7 @@ type VarName = String
 
 data Expr = Leaf VarName
            | IdentityLeaf Int
+           | LiteralScalar Float
            | Branch1 UnOp Expr
            | Branch2 BinOp Expr Expr
            | Branch3 TernOp Expr Expr Expr
@@ -23,6 +24,7 @@ data BinOp = MProduct
            | MSum
            | MLinSolve
            | MCholSolve
+           | MScalarProduct
            deriving (Eq, Ord, Enum)
 data UnOp = MInverse
           | MTranspose
@@ -37,6 +39,7 @@ instance Show TernOp where
 
 instance Show BinOp where
     show MProduct = "*"
+    show MScalarProduct = "*"
     show MSum = "+"
     show MLinSolve = "\\"
     show MCholSolve = "cholSolve"
@@ -50,6 +53,7 @@ instance Show UnOp where
 instance Show Expr where
     show (Leaf a) = a
     show (IdentityLeaf _) = "I"
+    show (LiteralScalar x) = show x
     show (Branch1 op c) = "(" ++ show op ++ " " ++ show c ++ ")"
     show (Branch2 op a b) = "(" ++ show op ++ " " ++ show a ++ " "
          ++ show b ++ ")"
@@ -106,7 +110,7 @@ instance Show MatrixSym where
 -- Error definitions
 
 -- Datatype for errors --
-data MError = SizeMismatch BinOp Matrix Matrix
+data MError = SizeMismatch BinOp Matrix Matrix Expr Expr
             | SizeMismatchTern TernOp Matrix Matrix Matrix
             | WrongProperties BinOp [MProperty] [MProperty] Expr Expr
             | WrongProperties1 UnOp [MProperty] Expr
@@ -120,9 +124,10 @@ data MError = SizeMismatch BinOp Matrix Matrix
             | MaybeError String
 
 showError :: MError -> String
-showError (SizeMismatch op m1 m2) =
+showError (SizeMismatch op m1 m2 t1 t2) =
         "Invalid matrix dimensions for operation ("
         ++ showDim m1 ++ ") " ++ show op ++ " (" ++ showDim m2 ++ ")"
+        ++ ", trees:\n" ++ (show t1) ++ "\n" ++ (show t2) 
 showError (SizeMismatchTern op m1 m2 m3) =
         "Invalid matrix dimensions for ternary operator '"
         ++ show op ++ "' applied to matrices " ++ showDim m1 ++ ", "

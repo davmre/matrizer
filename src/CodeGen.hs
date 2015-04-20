@@ -9,6 +9,9 @@ import MTypes
 generateNumpy :: Expr -> String
 generateNumpy (Leaf a) = a
 generateNumpy (IdentityLeaf n) = "np.eye(" ++ (show n) ++ ")"
+generateNumpy (LiteralScalar x) = let ix = round x
+                                      isInt = x == (fromIntegral ix) in
+                                      if isInt then show ix else show x
 generateNumpy (Branch3 MTernaryProduct t1 t2 t3) = "np.dot(np.dot(" ++ (generateNumpy t1) ++ 
                                                    ", " ++ (generateNumpy t2)  ++ "), " ++ 
                                                    (generateNumpy t3) ++ ")"
@@ -18,6 +21,8 @@ generateNumpy (Branch2 MCholSolve t1 t2) = "scipy.linalg.cho_solve((" ++ (genera
                                           ", True), " ++ (generateNumpy t2)  ++ ")" 
 generateNumpy (Branch2 MProduct t1 t2) = "np.dot(" ++ (generateNumpy t1) ++ 
                                           ", " ++ (generateNumpy t2)  ++ ")" 
+generateNumpy (Branch2 MScalarProduct t1 t2) = "( " ++ (generateNumpy t1) ++ " * "
+                                                  ++ (generateNumpy t2)  ++ ")" 
 generateNumpy (Branch2 MSum t1 (Branch1 MNegate t2)) = (generateNumpy t1) ++ " - " ++ (generateNumpy t2)
 generateNumpy (Branch2 MSum t1 t2) = (generateNumpy t1) ++ " + " ++ (generateNumpy t2)
 generateNumpy (Branch1 MInverse t) = "np.linalg.inv(" ++ (generateNumpy t) ++ ")"

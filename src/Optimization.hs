@@ -157,6 +157,7 @@ reOptimizeOnce rw tbl ((t, score):ts) = do localDeltas <- rw tbl t
 variablesUsed :: Expr -> [VarName] -> [VarName]
 variablesUsed (Leaf a) vs = a:vs
 variablesUsed (IdentityLeaf _ ) vs = vs
+variablesUsed (LiteralScalar _ ) vs = vs
 variablesUsed (Branch1 _ a ) vs = variablesUsed a vs
 variablesUsed (Branch2 _ a b) vs = variablesUsed b (variablesUsed a vs)
 variablesUsed (Branch3 _ a b c) vs = variablesUsed c (variablesUsed b (variablesUsed a vs))
@@ -198,6 +199,7 @@ buildSubexpressionMap smap z@( n@(Branch3 _ _ _ _), bs) =
                       MultiMap.insert n bs rightMap 
 buildSubexpressionMap smap (Leaf _ , _) = smap
 buildSubexpressionMap smap (n@(IdentityLeaf _), bs) = smap
+buildSubexpressionMap smap (n@(LiteralScalar _), bs) = smap
 
 
 -- generate a list of all common subexpressions: expressions that occur at least twice
@@ -288,6 +290,7 @@ rewriteMoves tbl e = return $ optimizerTraversal tbl (e, [])
 optimizerTraversal :: SymbolTable -> MZipper -> [(Expr, Int)]
 optimizerTraversal _ (Leaf _, _) = []
 optimizerTraversal _ (IdentityLeaf _, _) = []
+optimizerTraversal _ (LiteralScalar _, _) = []
 optimizerTraversal tbl z@( n@(Branch3 _ _ _ _), _) =
         (map (reconstructTreeScore z) (optimizeAtNode tbl n) ) ++
         (trapError [] id (fmap (optimizerTraversal tbl) (goLeft z) )) ++
@@ -388,6 +391,8 @@ binopProductRules = [assocMult
                     , killIdentity
                     , swapTranspose
                     , distributeMult
+                    , literalScalars
+                    , commuteScalarProduct
                     ]
 
 ternProductRules :: Rules
@@ -434,6 +439,8 @@ groundSubExprHelper e v subexpr = e
 assocMult :: Rule
 assocMult _ (Branch2 MProduct (Branch2 MProduct l c) r) = Just (Branch2 MProduct l (Branch2 MProduct c r))
 assocMult _ (Branch2 MProduct l (Branch2 MProduct c r)) = Just (Branch2 MProduct (Branch2 MProduct l c) r)
+assocMult _ (Branch2 MScalarProduct (Branch2 MScalarProduct l c) r) = Just (Branch2 MScalarProduct l (Branch2 MScalarProduct c r))
+assocMult _ (Branch2 MScalarProduct l (Branch2 MScalarProduct c r)) = Just (Branch2 MScalarProduct (Branch2 MScalarProduct l c) r)
 assocMult _ _ = Nothing
 
 -- (AC + BC) -> (A+B)C
@@ -441,6 +448,10 @@ commonFactorRight :: Rule
 commonFactorRight _ (Branch2 MSum (Branch2 MProduct l1 l2) (Branch2 MProduct r1 r2)) =
   if (l2 == r2)
      then Just (Branch2 MProduct (Branch2 MSum l1 r1) l2)
+     else Nothing
+commonFactorRight _ (Branch2 MSum (Branch2 MScalarProduct l1 l2) (Branch2 MScalarProduct r1 r2)) =
+  if (l2 == r2)
+     then Just (Branch2 MScalarProduct (Branch2 MSum l1 r1) l2)
      else Nothing
 commonFactorRight _ _ = Nothing
 
@@ -450,6 +461,10 @@ commonFactorLeft _ (Branch2 MSum (Branch2 MProduct l1 l2) (Branch2 MProduct r1 r
   if (l1 == r1)
      then Just (Branch2 MProduct l1 (Branch2 MSum l2 r2))
      else Nothing
+commonFactorLeft _ (Branch2 MSum (Branch2 MScalarProduct l1 l2) (Branch2 MScalarProduct r1 r2)) =
+  if (l1 == r1)
+     then Just (Branch2 MScalarProduct l1 (Branch2 MSum l2 r2))
+     else Nothing
 commonFactorLeft _ _ = Nothing
 
 -- A(B+C) -> AB+AC
@@ -457,7 +472,22 @@ commonFactorLeft _ _ = Nothing
 distributeMult :: Rule
 distributeMult _ (Branch2 MProduct l (Branch2 MSum c r)) = Just (Branch2 MSum (Branch2 MProduct l c) (Branch2 MProduct l r) )
 distributeMult _ (Branch2 MProduct (Branch2 MSum l c) r) = Just (Branch2 MSum (Branch2 MProduct l r) (Branch2 MProduct c r) )
+distributeMult _ (Branch2 MScalarProduct l (Branch2 MSum c r)) = Just (Branch2 MSum (Branch2 MScalarProduct l c) (Branch2 MScalarProduct l r) )
+distributeMult _ (Branch2 MScalarProduct (Branch2 MSum l c) r) = Just (Branch2 MSum (Branch2 MScalarProduct l r) (Branch2 MScalarProduct c r) )
 distributeMult _ _ = Nothing
+
+literalScalars :: Rule
+literalScalars _ (Branch2 MSum (LiteralScalar x) (LiteralScalar y)) = Just (LiteralScalar (x+y))
+literalScalars _ (Branch2 MProduct (LiteralScalar x) (LiteralScalar y)) = Just (LiteralScalar (x*y))
+literalScalars _ (Branch2 MScalarProduct (LiteralScalar x) (LiteralScalar y)) = Just (LiteralScalar (x*y))
+literalScalars _ (Branch1 MNegate (LiteralScalar x)) = Just (LiteralScalar (-x))
+literalScalars _ (Branch1 MInverse (LiteralScalar x)) = Just (LiteralScalar (1.0/x))
+literalScalars _ _ = Nothing
+
+commuteScalarProduct :: Rule
+commuteScalarProduct _ (Branch2 MProduct (Branch2 MScalarProduct a b) c) = Just (Branch2 MProduct b (Branch2 MScalarProduct a c))
+commuteScalarProduct _ (Branch2 MProduct a (Branch2 MScalarProduct b c)) = Just (Branch2 MProduct (Branch2 MScalarProduct b a) c)
+commuteScalarProduct _ _ = Nothing
 
 -- A^-1 B -> A\B
 invToLinsolve :: Rule

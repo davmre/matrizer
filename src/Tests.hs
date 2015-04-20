@@ -35,7 +35,7 @@ extractTests files tests
 runTestFile :: String -> IO ()
 runTestFile fname = do (tbl, test_tree, soln_tree) <- readTest fname
                        case runTest (tbl, test_tree, soln_tree) of
-                            (Right (f1, f2, f3)) -> putStrLn $ fname ++ ": naive " ++ show f1 ++ " target " ++ show f2 ++ " optimized " ++ show f3 ++ (if (f3 < f2) then " WIN!****" else if (f3 == f2) then " PASS" else "FAIL")
+                            (Right (f1, f2, f3)) -> putStrLn $ fname ++ ": naive " ++ show f1 ++ " target " ++ show f2 ++ " optimized " ++ show f3 ++ (if (f3 < f2) then " WIN!****" else if (f3 == f2) then " PASS" else " FAIL")
                             (Left err) -> putStrLn (fname ++ ": " ++ (show err) ++ " ERROR***")
 
 type OptimizerTest = (SymbolTable, Expr, Expr)
@@ -50,8 +50,8 @@ readTest fname = do test <- readFile (combine testdir fname)
                          (_, Left soln_err) -> error (show soln_err ++ " ERROR***")
 
 runTest :: OptimizerTest -> ThrowsError (Int, Int, Int)
-runTest (tbl, t1, t2) = do st1 <- subIdentity t1 tbl
-                           st2 <- subIdentity t2 tbl
+runTest (tbl, t1, t2) = do st1 <- preprocess t1 tbl
+                           st2 <- preprocess t2 tbl
                            naive_flops <- treeFLOPs st1 tbl
                            soln_flops <- treeFLOPs st2 tbl
                            (opt, opt_flops) <- optimize st1 tbl
