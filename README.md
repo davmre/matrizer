@@ -9,6 +9,8 @@ is transformed into Python code
 
     scipy.linalg.cho_solve(scipy.linalg.cho_factor(np.dot(X.T, X)), np.dot(X.T, y)).
 
+Setup
+-----
 
 To build:
 
