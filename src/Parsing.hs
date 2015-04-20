@@ -44,6 +44,8 @@ TokenParser{ parens = m_parens
 
 table :: OperatorTable String u Identity Expr
 table = [ [Prefix (m_reservedOp "-" >> return (Branch1 MNegate))] -- note: this will parse A-B as A * (-B)
+        , [Prefix (m_reservedOp "tr" >> return (Branch1 MTrace))] -- note: this will parse A-B as A * (-B)
+        , [Prefix (m_reservedOp "det" >> return (Branch1 MDet))] -- note: this will parse A-B as A * (-B)
         , [Postfix (m_reservedOp "^-1" >> return (Branch1 MInverse))]
         , [Postfix (m_reservedOp "'" >> return (Branch1 MTranspose))]
         , [Infix (m_reservedOp "*" >> return (Branch2 MProduct)) AssocLeft]

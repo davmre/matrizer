@@ -26,10 +26,13 @@ data BinOp = MProduct
            | MCholSolve
            | MScalarProduct
            deriving (Eq, Ord, Enum)
+
 data UnOp = MInverse
           | MTranspose
           | MNegate
           | MChol
+          | MTrace
+          | MDet
           deriving (Eq, Ord, Enum)
 
 -- AST pretty printing
@@ -49,6 +52,8 @@ instance Show UnOp where
     show MTranspose = "transpose"
     show MNegate = "neg"
     show MChol = "chol"
+    show MTrace = "tr"
+    show MDet = "det"
 
 instance Show Expr where
     show (Leaf a) = a

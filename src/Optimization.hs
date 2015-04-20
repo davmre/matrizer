@@ -393,6 +393,8 @@ binopProductRules = [assocMult
                     , distributeMult
                     , literalScalars
                     , commuteScalarProduct
+                    , assocScalarProduct
+                    , collectTerms
                     ]
 
 ternProductRules :: Rules
@@ -415,12 +417,23 @@ transposeRules = [distributeTranspose
                  , cancelDoubleTranspose
                  ]
 
+traceRules :: Rules
+traceRules = [dissolveTrace
+              , commuteTrace
+              , transposeTrace
+              , linearTrace
+              , identityOps]
+
+detRules :: Rules
+detRules = [factorDet
+            , detProps]
+
 letExpRules :: Rules
 letExpRules = [groundSubExpr]           
 
 optimizationRules :: Rules
 optimizationRules = inverseRules ++ transposeRules ++ binopSumRules ++
-    binopProductRules ++ ternProductRules ++ letExpRules
+    binopProductRules ++ ternProductRules ++ letExpRules ++ traceRules ++ detRules
 
 groundSubExpr :: Rule
 groundSubExpr _ (Let lhs rhs True body) = Just (groundSubExprHelper body lhs rhs)
@@ -488,6 +501,89 @@ commuteScalarProduct :: Rule
 commuteScalarProduct _ (Branch2 MProduct (Branch2 MScalarProduct a b) c) = Just (Branch2 MProduct b (Branch2 MScalarProduct a c))
 commuteScalarProduct _ (Branch2 MProduct a (Branch2 MScalarProduct b c)) = Just (Branch2 MProduct (Branch2 MScalarProduct b a) c)
 commuteScalarProduct _ _ = Nothing
+
+assocScalarProduct :: Rule
+assocScalarProduct _ (Branch2 MProduct (Branch2 MScalarProduct a b) c) = Just (Branch2 MScalarProduct a (Branch2 MProduct b c))
+assocScalarProduct _ (Branch2 MScalarProduct a (Branch2 MProduct b c)) = Just (Branch2 MProduct (Branch2 MScalarProduct a b) c) 
+assocScalarProduct _ _ = Nothing
+
+collectTerms :: Rule
+collectTerms _ (Branch2 MSum (Branch2 MScalarProduct (LiteralScalar n) a) b) 
+             | (a==b) = Just (Branch2 MScalarProduct (LiteralScalar (n+1)) a) 
+             | otherwise = Nothing
+collectTerms _ (Branch2 MSum a b) 
+             | (a==b) = Just (Branch2 MScalarProduct (LiteralScalar 2) a) 
+             | otherwise = Nothing
+collectTerms _ _ = Nothing
+
+-- tr(AB) = tr(BA)
+commuteTrace :: Rule
+commuteTrace tbl (Branch1 MTrace (Branch2 MProduct a b)) = 
+             let Right (Matrix r1 c1 _ ) = treeMatrix a tbl
+                 Right (Matrix r2 c2 _ ) = treeMatrix b tbl in
+                 if (r1==c2) 
+                 then Just (Branch1 MTrace (Branch2 MProduct b a))
+                 else Nothing
+commuteTrace tbl (Branch1 MTrace (Branch3 MTernaryProduct a b c)) = 
+             let Right (Matrix r1 c1 _ ) = treeMatrix a tbl
+                 Right (Matrix r3 c3 _ ) = treeMatrix c tbl in
+                 if (r3==r1) 
+                 then Just (Branch1 MTrace (Branch3 MTernaryProduct c a b))
+                 else Nothing
+commuteTrace _ _ = Nothing
+
+-- tr(c) <-> c for scalar c
+dissolveTrace :: Rule
+dissolveTrace tbl (Branch1 MTrace a) = let Right (Matrix r c _ ) = treeMatrix a tbl in
+                                       if (r==1 && c==1) then Just a else Nothing
+dissolveTrace _ _ = Nothing
+ 
+-- tr(A') <-> tr(A)
+transposeTrace :: Rule
+transposeTrace _ (Branch1 MTrace (Branch1 MTranspose a)) = Just (Branch1 MTrace a)
+transposeTrace _ (Branch1 MTrace a) = Just (Branch1 MTrace (Branch1 MTranspose a))
+transposeTrace _ _ = Nothing
+
+-- tr(A+B) <-> tr(A) + tr (B)
+-- tr(cA) <-> c*tr(A)
+linearTrace :: Rule
+linearTrace _ (Branch1 MTrace (Branch2 MSum a b)) = Just (Branch2 MSum (Branch1 MTrace a) (Branch1 MTrace b))
+linearTrace _ (Branch2 MSum (Branch1 MTrace a) (Branch1 MTrace b)) = Just (Branch1 MTrace (Branch2 MSum a b))
+linearTrace _ (Branch1 MTrace (Branch2 MScalarProduct a b)) = Just (Branch2 MScalarProduct (Branch1 MTrace a) (Branch1 MTrace b) )
+linearTrace _ (Branch2 MScalarProduct (Branch1 MTrace a) (Branch1 MTrace b) ) = Just (Branch1 MTrace (Branch2 MScalarProduct a b)) 
+linearTrace _ (Branch2 MProduct (Branch1 MTrace a) (Branch1 MTrace b) ) = Just (Branch1 MTrace (Branch2 MScalarProduct a b)) 
+linearTrace _ _ = Nothing
+
+-- tr(I) = dimension
+-- det(I) = 1
+identityOps :: Rule
+identityOps _ (Branch1 MTrace (IdentityLeaf n)) = Just (LiteralScalar (fromIntegral n))
+identityOps _ (Branch1 MDet (IdentityLeaf n)) = Just (LiteralScalar 1)
+identityOps _ _ = Nothing
+
+-- det(AB) <-> det(A) * det(B)
+factorDet :: Rule
+factorDet tbl (Branch1 MDet (Branch2 MProduct a b)) = 
+          let Right (Matrix l1 r1 _) = treeMatrix a tbl in
+              if (l1==r1) then Just (Branch2 MScalarProduct (Branch1 MDet a) (Branch1 MDet b))
+              else Nothing
+factorDet tbl (Branch2 MScalarProduct (Branch1 MDet a) (Branch1 MDet b)) = 
+          let Right (Matrix l1 r1 _) = treeMatrix a tbl in
+          let Right (Matrix l2 r2 _) = treeMatrix b tbl in
+          if (r1 == l2) then Just (Branch1 MDet (Branch2 MProduct a b)) 
+          else Nothing
+factorDet tbl (Branch2 MProduct (Branch1 MDet a) (Branch1 MDet b)) = 
+          let Right (Matrix l1 r1 _) = treeMatrix a tbl in
+          let Right (Matrix l2 r2 _) = treeMatrix b tbl in
+          if (r1 == l2) then Just (Branch1 MDet (Branch2 MProduct a b)) 
+          else Nothing
+factorDet _ _ = Nothing
+
+-- 
+detProps :: Rule
+detProps _ (Branch1 MDet (Branch1 MTranspose a)) = Just (Branch1 MDet a)
+-- todo: add other properties
+detProps _ _ = Nothing
 
 -- A^-1 B -> A\B
 invToLinsolve :: Rule

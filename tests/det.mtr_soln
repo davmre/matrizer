@@ -1,0 +1,2 @@
+tmp tmp1 = det(A);
+r = tmp1 * tmp1
