@@ -33,6 +33,8 @@ data UnOp = MInverse
           | MChol
           | MTrace
           | MDet
+          | MDiagVM -- convert a vector to a diagonal matrix
+          | MDiagMV -- extract a matrix diagonal as a vector
           deriving (Eq, Ord, Enum)
 
 -- AST pretty printing
@@ -54,6 +56,8 @@ instance Show UnOp where
     show MChol = "chol"
     show MTrace = "tr"
     show MDet = "det"
+    show MDiagVM = "diag"
+    show MDiagMV = "diag"
 
 instance Show Expr where
     show (Leaf a) = a

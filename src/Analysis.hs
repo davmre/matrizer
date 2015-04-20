@@ -43,6 +43,8 @@ exprType strict (Branch1 MNegate t) tbl = updateMatrixUnaryOp strict squareCheck
 exprType strict (Branch1 MChol t) tbl = updateMatrixUnaryOp strict squareCheck (elem PosDef) sameSize MChol t tbl
 exprType strict (Branch1 MTrace t) tbl = updateMatrixUnaryOp strict squareCheck (const True) scalarSize MTrace t tbl
 exprType strict (Branch1 MDet t) tbl = updateMatrixUnaryOp strict squareCheck (const True) scalarSize MDet t tbl
+exprType strict (Branch1 MDiagMV t) tbl = updateMatrixUnaryOp strict squareCheck (const True) diagMVSize MDiagMV t tbl
+exprType strict (Branch1 MDiagVM t) tbl = updateMatrixUnaryOp strict vectorCheck (const True) diagVMSize MDiagVM t tbl
 exprType strict n@(Let lhs rhs tmp body) tbl = do newtbl <- tblBind n tbl
                                                   exprType strict body newtbl
 
@@ -67,6 +69,11 @@ preprocess (Leaf "I") _ = throwError $ AnalysisError "could not infer size of id
 preprocess (Leaf a) _ = return $ Leaf a
 preprocess (IdentityLeaf n) _ = return $ IdentityLeaf n
 preprocess (LiteralScalar n) _ = return $ LiteralScalar n
+preprocess (Branch1 MDiagMV a) tbl = do newA <- preprocess a tbl
+                                        (Matrix n m _) <- treeMatrix newA tbl
+                                        if (n ==1 && m > 1) || (n>1 && m==1)
+                                        then return $ Branch1 MDiagVM newA
+                                        else return $ Branch1 MDiagMV newA
 preprocess (Branch1 op a) tbl = do newA <- preprocess a tbl
                                    return $ Branch1 op newA
 preprocess (Branch2 op a (Leaf "I")) tbl = 
@@ -115,6 +122,7 @@ sumSizeCheck r1 c1 r2 c2 = (r1 == r2) && (c1 == c2)
 scalarprodSizeCheck r1 c1 r2 c2 = (r1==1 && c1==1)
 
 squareCheck = (==)
+vectorCheck r c = (r==1) || (c==1)
 trueCheck = const $ const True
 
 ----------------------
@@ -123,6 +131,9 @@ trueCheck = const $ const True
 scalarSize r c = (1,1)
 sameSize r c = (r, c)
 transSize r c = (c, r)
+
+diagMVSize r c = (r, 1)
+diagVMSize r c = if (r==1) then (c, c) else (r,r)
 
 ternProductNewSize r1 c1 r2 c2 r3 c3 = (uncurry (prodNewSize r1 c1)) (prodNewSize r2 c2 r3 c3)
 linsolveNewSize _ c1 _ c2 = (c1, c2)
@@ -240,6 +251,8 @@ updateProps MNegate  props  = intersect [Diagonal, Symmetric] props
 updateProps MChol props = [LowerTriangular ] ++ (intersect [Diagonal ] props)
 updateProps MDet props = scalarProps
 updateProps MTrace props = scalarProps
+updateProps MDiagVM props = [Diagonal, Symmetric, LowerTriangular]
+updateProps MDiagMV props = []
 
 ----------------------------------------------------------------
 
@@ -315,6 +328,16 @@ treeFLOPs (Branch1 MDet t) tbl =
           do (Matrix r _ _) <- treeMatrix t tbl
              flops <- treeFLOPs t tbl
              return $ (2 * r * r * r) `quot` 3 + r + flops
+
+treeFLOPs (Branch1 MDiagMV t) tbl = 
+          do (Matrix r _ _) <- treeMatrix t tbl
+             flops <- treeFLOPs t tbl
+             return $ r + flops
+treeFLOPs (Branch1 MDiagVM t) tbl = 
+          do (Matrix r c _) <- treeMatrix t tbl
+             flops <- treeFLOPs t tbl
+             let m = max r c
+             return $ m*m + flops
 
 treeFLOPs (Let lhs rhs tmp body) tbl = do letMatrix <- treeMatrix rhs tbl
                                           letFLOPs <- treeFLOPs rhs tbl

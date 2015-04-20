@@ -31,6 +31,8 @@ generateNumpy (Branch1 MNegate t) = "-" ++ (generateNumpy t)
 generateNumpy (Branch1 MChol t) = "np.linalg.cholesky(" ++ (generateNumpy t) ++ ")"
 generateNumpy (Branch1 MTrace t) = "np.trace(" ++ (generateNumpy t) ++ ")"
 generateNumpy (Branch1 MDet t) = "np.linalg.det(" ++ (generateNumpy t) ++ ")"
+generateNumpy (Branch1 MDiagMV t) = "np.diag(" ++ (generateNumpy t) ++ ")"
+generateNumpy (Branch1 MDiagVM t) = "np.diag(" ++ (generateNumpy t) ++ ")"
 
 -- we use "empty" let expressions do denote the final quantitity to be computed, but we don't actually
 -- need to generate a body for such expressions
@@ -66,6 +68,8 @@ generateMatlab (Branch1 MNegate t) = "-" ++ (generateMatlab t)
 generateMatlab (Branch1 MChol t) = "chol(" ++ (generateMatlab t) ++ ")"
 generateMatlab (Branch1 MTrace t) = "trace(" ++ (generateMatlab t) ++ ")"
 generateMatlab (Branch1 MDet t) = "det(" ++ (generateMatlab t) ++ ")"
+generateMatlab (Branch1 MTrace t) = "diag(" ++ (generateMatlab t) ++ ")"
+generateMatlab (Branch1 MDet t) = "diag(" ++ (generateMatlab t) ++ ")"
 
 generateMatlab (Let lhs rhs tmp (Leaf _)) = lhs ++ " = " ++ (generateMatlab rhs)  ++ "\n"
 generateMatlab (Let lhs rhs tmp body) = lhs ++ " = " ++ (generateMatlab rhs) ++ "\n" ++ (generateMatlab body) ++ ";"

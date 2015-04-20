@@ -428,12 +428,15 @@ detRules :: Rules
 detRules = [factorDet
             , detProps]
 
+diagRules :: Rules
+diagRules = [cancelDiag]
+
 letExpRules :: Rules
 letExpRules = [groundSubExpr]           
 
 optimizationRules :: Rules
 optimizationRules = inverseRules ++ transposeRules ++ binopSumRules ++
-    binopProductRules ++ ternProductRules ++ letExpRules ++ traceRules ++ detRules
+    binopProductRules ++ ternProductRules ++ letExpRules ++ traceRules ++ detRules ++ diagRules
 
 groundSubExpr :: Rule
 groundSubExpr _ (Let lhs rhs True body) = Just (groundSubExprHelper body lhs rhs)
@@ -584,6 +587,24 @@ detProps :: Rule
 detProps _ (Branch1 MDet (Branch1 MTranspose a)) = Just (Branch1 MDet a)
 -- todo: add other properties
 detProps _ _ = Nothing
+
+-- diag(diag(x)) -> x for vector x
+-- diag(diag(A)) -> A for diagonal matrices A
+cancelDiag :: Rule
+cancelDiag _ (Branch1 MDiagMV (Branch1 MDiagVM a)) = Just a
+cancelDiag tbl (Branch1 MDiagVM (Branch1 MDiagMV a)) = 
+           let Right (Matrix _ _ props) = treeMatrix a tbl in 
+               if Diagonal `elem` props 
+               then Just a
+               else Nothing
+cancelDiag _ _ = Nothing
+
+-- TODO:
+-- trace of a diagonal matrix
+-- multiplication by a diagonal matrix
+-- inverse of diagonal matrix
+-- determinant of a diagonal matrix
+-- log determinants of arbitrary matrices via cholesky decomposition
 
 -- A^-1 B -> A\B
 invToLinsolve :: Rule

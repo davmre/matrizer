@@ -1,0 +1,8 @@
+A: n x n
+b: n x 1
+
+n ~ 100
+
+tmp B = diag(b);
+r = A * diag(B)
+# r = B * A
