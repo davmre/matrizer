@@ -1,13 +1,19 @@
 matrizer
 ========
 
-matrizer is an optimizing compiler for matrix expressions. You give it an expression (currently in awkward custom MATLAB-like syntax), along with approximate sizes of the matrices involved, and it applies algebraic identities along with other optimizations to search for a version of the expression requiring fewer FLOPs to compute. The result is output as code generated for your favorite numeric computing environment (currently only Python/numpy is implemented). For example, the normal equations expression 
+matrizer is an optimizing compiler for matrix expressions. You give it an expression (currently in awkward custom MATLAB-like syntax), along with approximate sizes of the matrices involved, and it applies algebraic identities along with other optimizations to search for a version of the expression requiring fewer FLOPs to compute. The result is output as code generated for your favorite numeric computing environment (currently Python/numpy and MATLAB are implemented). For example, the normal equations expression 
  
     (X'X)^-1 X'y 
 
 is transformed into Python code 
 
     scipy.linalg.cho_solve(scipy.linalg.cho_factor(np.dot(X.T, X)), np.dot(X.T, y)).
+
+*Beware:* this is still highly unpolished alpha-level software. Many
+features are missing, and there is no guarantee that the expressions
+output are optimal or even correct. It's best to think of the results
+as a source of inspiration rather than something to be blindly
+trusted.
 
 Setup
 -----
@@ -44,6 +50,10 @@ This should output:
     w := (cholSolve (* (transpose X) X) (* (transpose X) y))
     Optimized code generated:
     w = scipy.linalg.cho_solve(scipy.linalg.cho_factor(np.dot(X.T, X)), np.dot(X.T, y))
+
+You can also run the optimizer regression tests:
+
+    dist/build/matrizer/matrizer test
 
 There is currently no documentation, but the examples provide a
 reasonable guide to what's possible.  Currently we support basic
