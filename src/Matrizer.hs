@@ -20,6 +20,7 @@ fakeTree = Branch2 MProduct (Branch2 MProduct (Leaf "A") (Leaf "B") ) (Leaf "x")
 
 dumpInfo :: SymbolTable -> Expr -> ThrowsError String
 dumpInfo tbl raw_prgm = do prgm <- preprocess raw_prgm tbl
+                           matr <- typeCheck prgm tbl
                            flops <- treeFLOPs prgm tbl
                            (optPrgm, dflops)  <- optimize prgm tbl
                            return $ "Preamble symbol table: " ++ show tbl ++ "\nCode parsed as:\n" ++ show prgm ++ "\nNaive FLOPs required: " ++ show flops ++ "\nNaive code generated:\n" ++ generateNumpy prgm ++ "\n\nOptimized flops required: " ++ show (flops+dflops)  ++"\nOptimized program:\n" ++ show optPrgm ++ "\nOptimized code generated:\n" ++ generateNumpy optPrgm

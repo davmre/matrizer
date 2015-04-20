@@ -414,7 +414,7 @@ inverseRules = [distributeInverse
 transposeRules :: Rules
 transposeRules = [distributeTranspose
                  , swapTransposeInverse
-                 , cancelDoubleTranspose
+                 , cancelTranspose
                  ]
 
 traceRules :: Rules
@@ -694,9 +694,13 @@ swapTranspose _ (Branch2 MProduct (Branch1 MTranspose l) r) = Just (Branch1 MTra
 swapTranspose _ _ = Nothing
 
 -- A'' = A
-cancelDoubleTranspose :: Rule
-cancelDoubleTranspose _ (Branch1 MTranspose (Branch1 MTranspose t)) = Just t
-cancelDoubleTranspose _ _ = Nothing
+-- A' = A for symmetric matrices
+cancelTranspose :: Rule
+cancelTranspose _ (Branch1 MTranspose (Branch1 MTranspose t)) = Just t
+cancelTranspose tbl (Branch1 MTranspose t) = 
+                let Right (Matrix _ _ props) = treeMatrix t tbl in
+                    if Symmetric `elem` props then Just t else Nothing
+cancelTranspose _ _ = Nothing
 
 -- A'^-1 -> A^-1'
 swapInverseTranspose :: Rule

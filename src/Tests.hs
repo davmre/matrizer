@@ -29,7 +29,7 @@ extractTests files tests
                                f2 = (f1 ++ solution_suffix)
                                nfiles = Set.delete f1 files in
                                if Set.member f2 nfiles
-                               then extractTests (Set.delete f2 nfiles) (f1:tests)
+                               then extractTests (Set.delete f2 nfiles) (tests ++ [f1])
                                else extractTests nfiles tests
 
 runTestFile :: String -> IO ()
@@ -52,6 +52,8 @@ readTest fname = do test <- readFile (combine testdir fname)
 runTest :: OptimizerTest -> ThrowsError (Int, Int, Int)
 runTest (tbl, t1, t2) = do st1 <- preprocess t1 tbl
                            st2 <- preprocess t2 tbl
+                           m1 <- typeCheck st1 tbl
+                           m2 <- typeCheck st2 tbl
                            naive_flops <- treeFLOPs st1 tbl
                            soln_flops <- treeFLOPs st2 tbl
                            (opt, opt_flops) <- optimize st1 tbl
