@@ -395,6 +395,7 @@ binopProductRules = [assocMult
                     , commuteScalarProduct
                     , assocScalarProduct
                     , collectTerms
+                    , multDiag
                     ]
 
 ternProductRules :: Rules
@@ -611,8 +612,17 @@ cancelDiag tbl (Branch1 MDiagVM (Branch1 MDiagMV a)) =
                else Nothing
 cancelDiag _ _ = Nothing
 
+-- diag(a)*diag(b) = diag(a.*b)
+-- diag(a)*B = (a*B.T).T in numpy broadcast syntax
+-- A*diag(b) = b*A in numpy broadcast syntax
+multDiag :: Rule
+multDiag _ (Branch2 MProduct (Branch1 MDiagVM a) (Branch1 MDiagVM b)) = Just (Branch1 MDiagVM (Branch2 MHadamardProduct a b))
+multDiag _ (Branch2 MHadamardProduct (Branch1 MDiagVM a) (Branch1 MDiagVM b)) = Just (Branch1 MDiagVM (Branch2 MHadamardProduct a b))
+multDiag _ (Branch2 MProduct (Branch1 MDiagVM a) b) = Just (Branch1 MTranspose (Branch2 MColProduct a (Branch1 MTranspose b)))
+multDiag _ (Branch2 MProduct a (Branch1 MDiagVM b) ) = Just (Branch2 MColProduct b a)
+multDiag _ _ = Nothing
+
 -- TODO:
--- trace of a diagonal matrix
 -- multiplication by a diagonal matrix
 -- inverse of diagonal matrix
 -- determinant of a diagonal matrix

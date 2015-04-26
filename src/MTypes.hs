@@ -26,6 +26,7 @@ data BinOp = MProduct
            | MCholSolve
            | MScalarProduct
            | MHadamardProduct
+           | MColProduct
            deriving (Eq, Ord, Enum)
 
 data UnOp = MInverse
@@ -48,6 +49,8 @@ instance Show BinOp where
     show MProduct = "*"
     show MScalarProduct = "*"
     show MHadamardProduct = ".*"
+    show MColProduct = "*c" -- don't really expect people to use this input syntax 
+                            -- except for internal test cases
     show MSum = "+"
     show MLinSolve = "\\"
     show MCholSolve = "cholSolve"

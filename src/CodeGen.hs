@@ -23,6 +23,8 @@ generateNumpy (Branch2 MProduct t1 t2) = "np.dot(" ++ (generateNumpy t1) ++
                                           ", " ++ (generateNumpy t2)  ++ ")" 
 generateNumpy (Branch2 MScalarProduct t1 t2) = "( " ++ (generateNumpy t1) ++ " * "
                                                   ++ (generateNumpy t2)  ++ ")" 
+generateNumpy (Branch2 MColProduct t1 t2) = "( " ++ (generateNumpy t1) ++ " * "
+                                                  ++ (generateNumpy t2)  ++ ")" 
 generateNumpy (Branch2 MSum t1 (Branch1 MNegate t2)) = (generateNumpy t1) ++ " - " ++ (generateNumpy t2)
 generateNumpy (Branch2 MSum t1 t2) = (generateNumpy t1) ++ " + " ++ (generateNumpy t2)
 generateNumpy (Branch2 MHadamardProduct t1 t2) = (generateNumpy t1) ++ " * " ++ (generateNumpy t2)
@@ -44,6 +46,8 @@ generateNumpy (Let lhs rhs tmp body) = lhs ++ " = " ++ (generateNumpy rhs) ++ "\
 ---------------------------------------------------------------------------------------------------
 -- Code generation for MATLAB
 
+-- WARNING: I don't use MATLAB so most of this code is totally untested/possibly wrong. Use at your own risk (and please contribute patches!). 
+
 generateMatlab :: Expr -> String
 generateMatlab (Leaf a) = a
 generateMatlab (IdentityLeaf n) = "eye(" ++ (show n) ++ ")"
@@ -62,11 +66,13 @@ generateMatlab (Branch2 MProduct t1 t2) = "(" ++ (generateMatlab t1) ++
                                           " * " ++ (generateMatlab t2)  ++ ")"
 generateMatlab (Branch2 MScalarProduct t1 t2) = "(" ++ (generateMatlab t1) ++
                                                 " * " ++ (generateMatlab t2)  ++ ")"
+generateMatlab (Branch2 MColProduct t1 t2) = "bsxfun(@times, " ++ (generateMatlab t1) ++
+                                                ", " ++ (generateMatlab t2)  ++ ")"
 generateMatlab (Branch2 MSum t1 (Branch1 MNegate t2)) = (generateMatlab t1) ++ " - " ++ (generateMatlab t2)
 generateMatlab (Branch2 MSum t1 t2) = "(" ++ (generateMatlab t1) ++ " + " ++ (generateMatlab t2) ++ ")"
 generateMatlab (Branch2 MHadamardProduct t1 t2) = "(" ++ (generateMatlab t1) ++ " .* " ++ (generateMatlab t2) ++ ")"
 generateMatlab (Branch1 MInverse t) = "inv(" ++ (generateMatlab t) ++ ")"
-generateMatlab (Branch1 MTranspose t) = (generateMatlab t) ++ "'" -- caution: might we need parentheses here?
+generateMatlab (Branch1 MTranspose t) = (generateMatlab t) ++ "'" -- caution: might need parentheses here?
 generateMatlab (Branch1 MNegate t) = "-" ++ (generateMatlab t)
 generateMatlab (Branch1 MChol t) = "chol(" ++ (generateMatlab t) ++ ")"
 generateMatlab (Branch1 MTrace t) = "trace(" ++ (generateMatlab t) ++ ")"

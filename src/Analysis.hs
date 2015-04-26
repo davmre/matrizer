@@ -35,7 +35,8 @@ exprType strict (Branch3 MTernaryProduct t1 t2 t3) tbl = updateMatrixTernaryOp s
 exprType strict (Branch2 MLinSolve t1 t2) tbl = updateMatrixBinaryOp strict linsolveSizeCheck truePropCheck linsolveNewSize MLinSolve t1 t2 tbl
 exprType strict (Branch2 MCholSolve t1 t2) tbl = updateMatrixBinaryOp strict linsolveSizeCheck cholsolvePropCheck linsolveNewSize MCholSolve t1 t2 tbl
 exprType strict (Branch2 MProduct t1 t2) tbl = updateMatrixBinaryOp strict prodSizeCheck truePropCheck prodNewSize MProduct t1 t2 tbl
-exprType strict (Branch2 MScalarProduct t1 t2) tbl = updateMatrixBinaryOp strict scalarprodSizeCheck truePropCheck scalarprodNewSize MProduct t1 t2 tbl
+exprType strict (Branch2 MScalarProduct t1 t2) tbl = updateMatrixBinaryOp strict scalarprodSizeCheck truePropCheck scalarprodNewSize MScalarProduct t1 t2 tbl
+exprType strict (Branch2 MColProduct t1 t2) tbl = updateMatrixBinaryOp strict colprodSizeCheck truePropCheck scalarprodNewSize MColProduct t1 t2 tbl
 exprType strict (Branch2 MHadamardProduct t1 t2) tbl = updateMatrixBinaryOp strict sumSizeCheck truePropCheck sumNewSize MHadamardProduct t1 t2 tbl
 exprType strict (Branch2 MSum t1 t2) tbl = updateMatrixBinaryOp strict sumSizeCheck truePropCheck sumNewSize MSum t1 t2 tbl
 exprType strict (Branch1 MInverse t) tbl = updateMatrixUnaryOp strict squareCheck (const True) sameSize MInverse t tbl
@@ -60,6 +61,7 @@ typeCheck = exprType True
 
 idshape2 :: BinOp -> Bool -> Int -> Int -> Int
 idshape2 MProduct idOnRight n m = if idOnRight then m else n
+idshape2 MColProduct idOnRight n m = if idOnRight then n else n -- "else" clause should never be hit since row/col products always have a vector on the left
 idshape2 MSum _ n _ = n -- the n != m case will be caught in a typecheck later
 idshape2 MHadamardProduct _ n _ = n -- the n != m case will be caught in a typecheck later
 idshape2 MLinSolve idOnRight n m = if idOnRight then n else m
@@ -95,6 +97,8 @@ preprocess (Branch2 MProduct a b) tbl = do newA <- preprocess a tbl
                                            then return $ Branch2 MScalarProduct newA newB
                                            else if (n2==1 && m2==1) 
                                                 then return $ Branch2 MScalarProduct newB newA
+                                           else if (m1 == 1) && (n1==n2)
+                                                then return $ Branch2 MColProduct newA newB
                                            else return $ Branch2 MProduct newA newB
 preprocess (Branch2 op a b) tbl = do newA <- preprocess a tbl
                                      newB <- preprocess b tbl
@@ -123,6 +127,8 @@ linsolveSizeCheck r1 c1 r2 _ = (r1 == r2) && (r1 == c1)
 prodSizeCheck r1 c1 r2 _ = (c1 == r2)
 sumSizeCheck r1 c1 r2 c2 = (r1 == r2) && (c1 == c2)
 scalarprodSizeCheck r1 c1 r2 c2 = (r1==1 && c1==1)
+rowprodSizeCheck r1 c1 r2 c2 = (c1==1) && (r1==c2)
+colprodSizeCheck r1 c1 r2 c2 = (c1==1) && (r1==r2)
 
 squareCheck = (==)
 vectorCheck r c = (r==1) || (c==1)
@@ -213,9 +219,9 @@ updateBinaryClosedProps :: [MProperty] -> [MProperty] -> [MProperty] -> [MProper
 updateBinaryClosedProps = (intersect .) . intersect
 
 updateBinaryProps :: BinOp -> [MProperty] -> [MProperty] -> Expr -> Expr -> [MProperty]
-updateBinaryProps MProduct props1 props2 t1 t2 = nub $ (updateBinaryClosedProps [Diagonal, LowerTriangular] props1 props2) ++
-                                                       if (productPosDef t1 t2) then [PosDef] else []
+updateBinaryProps MProduct props1 props2 t1 t2 = nub $ (updateBinaryClosedProps [Diagonal, LowerTriangular] props1 props2) ++ if (productPosDef t1 t2) then [PosDef] else []
 updateBinaryProps MScalarProduct props1 props2 t1 t2 = intersect [Symmetric, Diagonal, LowerTriangular] props2 
+updateBinaryProps MColProduct props1 props2 t1 t2 = intersect [Diagonal, LowerTriangular] props2 
 updateBinaryProps MSum props1 props2 _ _ = updateBinaryClosedProps [Diagonal, Symmetric, PosDef, LowerTriangular] props1 props2
 updateBinaryProps MHadamardProduct props1 props2 _ _ = updateBinaryClosedProps [Diagonal, Symmetric, PosDef, LowerTriangular] props1 props2 -- PosDef is preserved by the Schur product theorem
 updateBinaryProps MLinSolve props1 props2 _ _ = updateBinaryClosedProps [] props1 props2
@@ -316,6 +322,11 @@ treeFLOPs (Branch2 MHadamardProduct t1 t2) tbl =
            flops1 <- treeFLOPs t1 tbl
            flops2 <- treeFLOPs t2 tbl
            return $ r1 * c1 + flops1 + flops2
+treeFLOPs (Branch2 MColProduct t1 t2) tbl =
+        do (Matrix r c _) <- treeMatrix t2 tbl
+           flops1 <- treeFLOPs t1 tbl
+           flops2 <- treeFLOPs t2 tbl
+           return $ r * c + flops1 + flops2
 treeFLOPs (Branch1 MInverse t) tbl =
         do (Matrix r _ props) <- treeMatrix t tbl
            flops <- treeFLOPs t tbl
