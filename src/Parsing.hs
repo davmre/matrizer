@@ -46,10 +46,12 @@ table :: OperatorTable String u Identity Expr
 table = [ [Prefix (m_reservedOp "-" >> return (Branch1 MNegate))] -- note: this will parse A-B as A * (-B)
         , [Prefix (m_reservedOp "tr" >> return (Branch1 MTrace))] 
         , [Prefix (m_reservedOp "det" >> return (Branch1 MDet))] 
+        , [Prefix (m_reservedOp "sum" >> return (Branch1 MEntrySum))] 
         , [Prefix (m_reservedOp "diag" >> return (Branch1 MDiagMV))] -- guess which diag is meant and fix in preprocessing analysis 
         , [Postfix (m_reservedOp "^-1" >> return (Branch1 MInverse))]
         , [Postfix (m_reservedOp "'" >> return (Branch1 MTranspose))]
         , [Infix (m_reservedOp "*" >> return (Branch2 MProduct)) AssocLeft]
+        , [Infix (m_reservedOp ".*" >> return (Branch2 MHadamardProduct)) AssocLeft]
         , [Infix (m_reservedOp "" >> return (Branch2 MProduct)) AssocLeft]
         , [Infix (m_reservedOp "\\" >> return (Branch2 MLinSolve)) AssocLeft]
         , [Infix (m_reservedOp "+" >> return (Branch2 MSum)) AssocLeft]

@@ -1,0 +1,7 @@
+A: n x n
+B: n x n
+c: 1 x 1
+
+n ~ 100
+
+r = sum(c*A) + sum(B)

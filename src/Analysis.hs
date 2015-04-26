@@ -36,6 +36,7 @@ exprType strict (Branch2 MLinSolve t1 t2) tbl = updateMatrixBinaryOp strict lins
 exprType strict (Branch2 MCholSolve t1 t2) tbl = updateMatrixBinaryOp strict linsolveSizeCheck cholsolvePropCheck linsolveNewSize MCholSolve t1 t2 tbl
 exprType strict (Branch2 MProduct t1 t2) tbl = updateMatrixBinaryOp strict prodSizeCheck truePropCheck prodNewSize MProduct t1 t2 tbl
 exprType strict (Branch2 MScalarProduct t1 t2) tbl = updateMatrixBinaryOp strict scalarprodSizeCheck truePropCheck scalarprodNewSize MProduct t1 t2 tbl
+exprType strict (Branch2 MHadamardProduct t1 t2) tbl = updateMatrixBinaryOp strict sumSizeCheck truePropCheck sumNewSize MHadamardProduct t1 t2 tbl
 exprType strict (Branch2 MSum t1 t2) tbl = updateMatrixBinaryOp strict sumSizeCheck truePropCheck sumNewSize MSum t1 t2 tbl
 exprType strict (Branch1 MInverse t) tbl = updateMatrixUnaryOp strict squareCheck (const True) sameSize MInverse t tbl
 exprType strict (Branch1 MTranspose t) tbl = updateMatrixUnaryOp strict trueCheck (const True) transSize MTranspose t tbl
@@ -45,6 +46,7 @@ exprType strict (Branch1 MTrace t) tbl = updateMatrixUnaryOp strict squareCheck 
 exprType strict (Branch1 MDet t) tbl = updateMatrixUnaryOp strict squareCheck (const True) scalarSize MDet t tbl
 exprType strict (Branch1 MDiagMV t) tbl = updateMatrixUnaryOp strict squareCheck (const True) diagMVSize MDiagMV t tbl
 exprType strict (Branch1 MDiagVM t) tbl = updateMatrixUnaryOp strict vectorCheck (const True) diagVMSize MDiagVM t tbl
+exprType strict (Branch1 MEntrySum t) tbl = updateMatrixUnaryOp strict trueCheck (const True) scalarSize MEntrySum t tbl
 exprType strict n@(Let lhs rhs tmp body) tbl = do newtbl <- tblBind n tbl
                                                   exprType strict body newtbl
 
@@ -59,6 +61,7 @@ typeCheck = exprType True
 idshape2 :: BinOp -> Bool -> Int -> Int -> Int
 idshape2 MProduct idOnRight n m = if idOnRight then m else n
 idshape2 MSum _ n _ = n -- the n != m case will be caught in a typecheck later
+idshape2 MHadamardProduct _ n _ = n -- the n != m case will be caught in a typecheck later
 idshape2 MLinSolve idOnRight n m = if idOnRight then n else m
 idshape2 MCholSolve idOnRight n m = if idOnRight then n else m
 
@@ -214,6 +217,7 @@ updateBinaryProps MProduct props1 props2 t1 t2 = nub $ (updateBinaryClosedProps 
                                                        if (productPosDef t1 t2) then [PosDef] else []
 updateBinaryProps MScalarProduct props1 props2 t1 t2 = intersect [Symmetric, Diagonal, LowerTriangular] props2 
 updateBinaryProps MSum props1 props2 _ _ = updateBinaryClosedProps [Diagonal, Symmetric, PosDef, LowerTriangular] props1 props2
+updateBinaryProps MHadamardProduct props1 props2 _ _ = updateBinaryClosedProps [Diagonal, Symmetric, PosDef, LowerTriangular] props1 props2 -- PosDef is preserved by the Schur product theorem
 updateBinaryProps MLinSolve props1 props2 _ _ = updateBinaryClosedProps [] props1 props2
 updateBinaryProps MCholSolve props1 props2 _ _ = updateBinaryClosedProps [] props1 props2
 
@@ -251,6 +255,7 @@ updateProps MNegate  props  = intersect [Diagonal, Symmetric] props
 updateProps MChol props = [LowerTriangular ] ++ (intersect [Diagonal ] props)
 updateProps MDet props = scalarProps
 updateProps MTrace props = scalarProps
+updateProps MEntrySum props = scalarProps
 updateProps MDiagVM props = [Diagonal, Symmetric, LowerTriangular]
 updateProps MDiagMV props = []
 
@@ -305,6 +310,12 @@ treeFLOPs (Branch2 MSum t1 t2) tbl =
            flops1 <- treeFLOPs t1 tbl
            flops2 <- treeFLOPs t2 tbl
            return $ r1 * c1 + flops1 + flops2
+treeFLOPs (Branch2 MHadamardProduct t1 t2) tbl =
+        do (Matrix r1 c1 _) <- treeMatrix t1 tbl
+           (Matrix _ _ _) <- treeMatrix t2 tbl
+           flops1 <- treeFLOPs t1 tbl
+           flops2 <- treeFLOPs t2 tbl
+           return $ r1 * c1 + flops1 + flops2
 treeFLOPs (Branch1 MInverse t) tbl =
         do (Matrix r _ props) <- treeMatrix t tbl
            flops <- treeFLOPs t tbl
@@ -338,6 +349,12 @@ treeFLOPs (Branch1 MDiagVM t) tbl =
              flops <- treeFLOPs t tbl
              let m = max r c
              return $ m*m + flops
+
+treeFLOPs (Branch1 MEntrySum t) tbl = 
+          do (Matrix r c _) <- treeMatrix t tbl
+             flops <- treeFLOPs t tbl
+             return $ r*c + flops
+
 
 treeFLOPs (Let lhs rhs tmp body) tbl = do letMatrix <- treeMatrix rhs tbl
                                           letFLOPs <- treeFLOPs rhs tbl

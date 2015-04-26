@@ -422,7 +422,9 @@ traceRules = [dissolveTrace
               , commuteTrace
               , transposeTrace
               , linearTrace
-              , identityOps]
+              , identityOps
+              , traceProduct
+              , traceDiag]
 
 detRules :: Rules
 detRules = [factorDet
@@ -431,12 +433,18 @@ detRules = [factorDet
 diagRules :: Rules
 diagRules = [cancelDiag]
 
+entrySumRules :: Rules
+entrySumRules = [entrySumLinear]
+
+hadamardProductRules :: Rules
+hadamardProductRules = [hadamardProductAssoc, hadamardProductDist, hadamardProductCommute]
+
 letExpRules :: Rules
 letExpRules = [groundSubExpr]           
 
 optimizationRules :: Rules
 optimizationRules = inverseRules ++ transposeRules ++ binopSumRules ++
-    binopProductRules ++ ternProductRules ++ letExpRules ++ traceRules ++ detRules ++ diagRules
+    binopProductRules ++ ternProductRules ++ letExpRules ++ traceRules ++ detRules ++ diagRules ++ entrySumRules ++ hadamardProductRules
 
 groundSubExpr :: Rule
 groundSubExpr _ (Let lhs rhs True body) = Just (groundSubExprHelper body lhs rhs)
@@ -564,6 +572,10 @@ identityOps _ (Branch1 MTrace (IdentityLeaf n)) = Just (LiteralScalar (fromInteg
 identityOps _ (Branch1 MDet (IdentityLeaf n)) = Just (LiteralScalar 1)
 identityOps _ _ = Nothing
 
+traceDiag :: Rule
+traceDiag _ (Branch1 MTrace (Branch1 MDiagVM v)) = Just (Branch1 MEntrySum v)
+traceDiag _ _ = Nothing
+
 -- det(AB) <-> det(A) * det(B)
 factorDet :: Rule
 factorDet tbl (Branch1 MDet (Branch2 MProduct a b)) = 
@@ -605,6 +617,40 @@ cancelDiag _ _ = Nothing
 -- inverse of diagonal matrix
 -- determinant of a diagonal matrix
 -- log determinants of arbitrary matrices via cholesky decomposition
+
+
+-- tr(AB') = sum(A*B)
+traceProduct :: Rule
+traceProduct tbl (Branch1 MTrace (Branch2 MProduct a (Branch1 MTranspose b))) = 
+           let Right (Matrix r1 c1 _) = treeMatrix a tbl
+               Right (Matrix r2 c2 _) = treeMatrix b tbl in 
+               if (r1==r2) && (c1==c2) 
+               then Just (Branch1 MEntrySum (Branch2 MHadamardProduct a b))
+               else Nothing
+traceProduct _ _ = Nothing
+
+entrySumLinear :: Rule
+entrySumLinear _ (Branch1 MEntrySum (Branch2 MSum a b)) = Just (Branch2 MSum (Branch1 MEntrySum a) (Branch1 MEntrySum b))
+entrySumLinear _  (Branch2 MSum (Branch1 MEntrySum a) (Branch1 MEntrySum b)) = Just (Branch1 MEntrySum (Branch2 MSum a b))
+entrySumLinear _ (Branch1 MEntrySum (Branch2 MScalarProduct a b))  = Just (Branch2 MScalarProduct a (Branch1 MEntrySum b))
+entrySumLinear _ _ = Nothing
+
+hadamardProductAssoc :: Rule
+hadamardProductAssoc _ (Branch2 MHadamardProduct a (Branch2 MHadamardProduct b c)) = Just (Branch2 MHadamardProduct (Branch2 MHadamardProduct a b) c)
+hadamardProductAssoc _ (Branch2 MHadamardProduct (Branch2 MHadamardProduct a b) c) = Just (Branch2 MHadamardProduct a (Branch2 MHadamardProduct b c))
+hadamardProductAssoc _ _ = Nothing
+
+hadamardProductDist :: Rule
+hadamardProductDist _ (Branch2 MHadamardProduct a (Branch2 MSum b c)) = Just (Branch2 MSum (Branch2 MHadamardProduct a b) (Branch2 MHadamardProduct a c))
+hadamardProductDist _ (Branch2 MSum (Branch2 MHadamardProduct a b) (Branch2 MHadamardProduct a2 c)) = 
+                    if a==a2 then Just (Branch2 MHadamardProduct a (Branch2 MSum b c))
+                    else Nothing
+hadamardProductDist _ _ = Nothing
+
+hadamardProductCommute :: Rule
+hadamardProductCommute _ (Branch2 MHadamardProduct a b) = Just (Branch2 MHadamardProduct b a)
+hadamardProductCommute _ _ = Nothing
+
 
 -- A^-1 B -> A\B
 invToLinsolve :: Rule

@@ -25,6 +25,7 @@ data BinOp = MProduct
            | MLinSolve
            | MCholSolve
            | MScalarProduct
+           | MHadamardProduct
            deriving (Eq, Ord, Enum)
 
 data UnOp = MInverse
@@ -35,6 +36,7 @@ data UnOp = MInverse
           | MDet
           | MDiagVM -- convert a vector to a diagonal matrix
           | MDiagMV -- extract a matrix diagonal as a vector
+          | MEntrySum
           deriving (Eq, Ord, Enum)
 
 -- AST pretty printing
@@ -45,6 +47,7 @@ instance Show TernOp where
 instance Show BinOp where
     show MProduct = "*"
     show MScalarProduct = "*"
+    show MHadamardProduct = ".*"
     show MSum = "+"
     show MLinSolve = "\\"
     show MCholSolve = "cholSolve"
@@ -58,6 +61,7 @@ instance Show UnOp where
     show MDet = "det"
     show MDiagVM = "diag"
     show MDiagMV = "diag"
+    show MEntrySum = "sum"
 
 instance Show Expr where
     show (Leaf a) = a
