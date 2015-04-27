@@ -1,0 +1,8 @@
+K: n x n posdef
+y: n x 1
+pi: 1 x 1
+n: 1 x 1
+
+n ~ 100
+
+r = 0.5*(y' K^-1 y) + 0.5*log(det(K)) + 0.5*n*log(2*pi)

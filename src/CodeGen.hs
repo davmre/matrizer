@@ -17,6 +17,8 @@ generateNumpy (Branch3 MTernaryProduct t1 t2 t3) = "np.dot(np.dot(" ++ (generate
                                                    (generateNumpy t3) ++ ")"
 generateNumpy (Branch2 MLinSolve t1 t2) = "np.linalg.solve(" ++ (generateNumpy t1) ++ 
                                           ", " ++ (generateNumpy t2)  ++ ")" 
+generateNumpy (Branch2 MTriSolve t1 t2) = "scipy.linalg.solve_triangular(" ++ (generateNumpy t1) ++ 
+                                          ", " ++ (generateNumpy t2)  ++ ", lower=True)" 
 generateNumpy (Branch2 MCholSolve t1 t2) = "scipy.linalg.cho_solve((" ++ (generateNumpy t1) ++ 
                                           ", True), " ++ (generateNumpy t2)  ++ ")" 
 generateNumpy (Branch2 MProduct t1 t2) = "np.dot(" ++ (generateNumpy t1) ++ 
@@ -25,8 +27,8 @@ generateNumpy (Branch2 MScalarProduct t1 t2) = "( " ++ (generateNumpy t1) ++ " *
                                                   ++ (generateNumpy t2)  ++ ")" 
 generateNumpy (Branch2 MColProduct t1 t2) = "( " ++ (generateNumpy t1) ++ " * "
                                                   ++ (generateNumpy t2)  ++ ")" 
-generateNumpy (Branch2 MSum t1 (Branch1 (MElementWise MNegate) t2)) = (generateNumpy t1) ++ " - " ++ (generateNumpy t2)
-generateNumpy (Branch2 MSum t1 t2) = (generateNumpy t1) ++ " + " ++ (generateNumpy t2)
+generateNumpy (Branch2 MSum t1 (Branch1 (MElementWise MNegate) t2)) = "(" ++ (generateNumpy t1) ++ " - " ++ (generateNumpy t2) ++ ")"
+generateNumpy (Branch2 MSum t1 t2) = "(" ++ (generateNumpy t1) ++ " + " ++ (generateNumpy t2) ++ ")"
 generateNumpy (Branch2 MHadamardProduct t1 t2) = (generateNumpy t1) ++ " * " ++ (generateNumpy t2)
 generateNumpy (Branch1 MInverse t) = "np.linalg.inv(" ++ (generateNumpy t) ++ ")"
 generateNumpy (Branch1 MTranspose t) = (generateNumpy t) ++ ".T" -- caution: might we need parentheses here?
@@ -62,6 +64,8 @@ generateMatlab (Branch3 MTernaryProduct t1 t2 t3) = "(" ++ (generateMatlab t1) +
                                                         (generateMatlab t3) ++ ")"
 generateMatlab (Branch2 MLinSolve t1 t2) = "(" ++ (generateMatlab t1) ++
                                           "\\" ++ (generateMatlab t2)  ++ ")"
+generateMatlab (Branch2 MTriSolve t1 t2) = "(" ++ (generateMatlab t1) ++
+                                          "\\" ++ (generateMatlab t2)  ++ ")"
 generateMatlab (Branch2 MCholSolve t1 t2) = "(" ++ (generateMatlab t1) ++
                                             "\\((" ++ (generateMatlab t1) ++
                                             ")'\\" ++ (generateMatlab t2) ++ "))"
@@ -71,7 +75,7 @@ generateMatlab (Branch2 MScalarProduct t1 t2) = "(" ++ (generateMatlab t1) ++
                                                 " * " ++ (generateMatlab t2)  ++ ")"
 generateMatlab (Branch2 MColProduct t1 t2) = "bsxfun(@times, " ++ (generateMatlab t1) ++
                                                 ", " ++ (generateMatlab t2)  ++ ")"
-generateMatlab (Branch2 MSum t1 (Branch1 (MElementWise MNegate) t2)) = (generateMatlab t1) ++ " - " ++ (generateMatlab t2)
+generateMatlab (Branch2 MSum t1 (Branch1 (MElementWise MNegate) t2)) = "(" ++ (generateMatlab t1) ++ " - " ++ (generateMatlab t2) ++ ")"
 generateMatlab (Branch2 MSum t1 t2) = "(" ++ (generateMatlab t1) ++ " + " ++ (generateMatlab t2) ++ ")"
 generateMatlab (Branch2 MHadamardProduct t1 t2) = "(" ++ (generateMatlab t1) ++ " .* " ++ (generateMatlab t2) ++ ")"
 generateMatlab (Branch1 MInverse t) = "inv(" ++ (generateMatlab t) ++ ")"

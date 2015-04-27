@@ -24,6 +24,7 @@ data BinOp = MProduct
            | MSum
            | MLinSolve
            | MCholSolve
+           | MTriSolve
            | MScalarProduct
            | MHadamardProduct
            | MColProduct
@@ -59,6 +60,7 @@ instance Show BinOp where
                             -- except for internal test cases
     show MSum = "+"
     show MLinSolve = "\\"
+    show MTriSolve = "\\tri"
     show MCholSolve = "cholSolve"
 
 instance Show UnOp where

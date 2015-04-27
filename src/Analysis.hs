@@ -33,7 +33,8 @@ exprType strict (IdentityLeaf n) tbl = return $ Matrix n n [Symmetric, PosDef, D
 exprType strict (LiteralScalar x) tbl = return $ Matrix 1 1 scalarProps
 exprType strict (Branch3 MTernaryProduct t1 t2 t3) tbl = updateMatrixTernaryOp strict ternProductSizeCheck ternProductNewSize MTernaryProduct t1 t2 t3 tbl
 exprType strict (Branch2 MLinSolve t1 t2) tbl = updateMatrixBinaryOp strict linsolveSizeCheck truePropCheck linsolveNewSize MLinSolve t1 t2 tbl
-exprType strict (Branch2 MCholSolve t1 t2) tbl = updateMatrixBinaryOp strict linsolveSizeCheck cholsolvePropCheck linsolveNewSize MCholSolve t1 t2 tbl
+exprType strict (Branch2 MTriSolve t1 t2) tbl = updateMatrixBinaryOp strict linsolveSizeCheck ltriPropCheck linsolveNewSize MTriSolve t1 t2 tbl
+exprType strict (Branch2 MCholSolve t1 t2) tbl = updateMatrixBinaryOp strict linsolveSizeCheck ltriPropCheck linsolveNewSize MCholSolve t1 t2 tbl
 exprType strict (Branch2 MProduct t1 t2) tbl = updateMatrixBinaryOp strict prodSizeCheck truePropCheck prodNewSize MProduct t1 t2 tbl
 exprType strict (Branch2 MScalarProduct t1 t2) tbl = updateMatrixBinaryOp strict scalarprodSizeCheck truePropCheck scalarprodNewSize MScalarProduct t1 t2 tbl
 exprType strict (Branch2 MColProduct t1 t2) tbl = updateMatrixBinaryOp strict colprodSizeCheck truePropCheck scalarprodNewSize MColProduct t1 t2 tbl
@@ -65,6 +66,7 @@ idshape2 MColProduct idOnRight n m = if idOnRight then n else n -- "else" clause
 idshape2 MSum _ n _ = n -- the n != m case will be caught in a typecheck later
 idshape2 MHadamardProduct _ n _ = n -- the n != m case will be caught in a typecheck later
 idshape2 MLinSolve idOnRight n m = if idOnRight then n else m
+idshape2 MTriSolve idOnRight n m = if idOnRight then n else m
 idshape2 MCholSolve idOnRight n m = if idOnRight then n else m
 
 
@@ -100,6 +102,12 @@ preprocess (Branch2 MProduct a b) tbl = do newA <- preprocess a tbl
                                            else if (m1 == 1) && (n1==n2)
                                                 then return $ Branch2 MColProduct newA newB
                                            else return $ Branch2 MProduct newA newB
+preprocess (Branch2 MLinSolve a b) tbl = do newA <- preprocess a tbl
+                                            newB <- preprocess b tbl
+                                            (Matrix n1 m1 props) <- treeMatrix newA tbl
+                                            if LowerTriangular `elem` props
+                                            then return $ Branch2 MTriSolve newA newB
+                                            else return $ Branch2 MLinSolve newA newB
 preprocess (Branch2 op a b) tbl = do newA <- preprocess a tbl
                                      newB <- preprocess b tbl
                                      return $ Branch2 op newA newB
@@ -115,7 +123,7 @@ preprocess (Let lhs rhs tmp body) tbl  = do newRHS <- preprocess rhs tbl
 -- TODO: Why are so many of these things even here? Why not just have
 -- (const $ const True) wherever truePropCheck is being used?
                                              
-cholsolvePropCheck props1 props2 = LowerTriangular `elem` props1
+ltriPropCheck props1 props2 = LowerTriangular `elem` props1
 truePropCheck props1 props2 = True
 
 ---------------------
@@ -225,6 +233,7 @@ updateBinaryProps MColProduct props1 props2 t1 t2 = intersect [Diagonal, LowerTr
 updateBinaryProps MSum props1 props2 _ _ = updateBinaryClosedProps [Diagonal, Symmetric, PosDef, LowerTriangular] props1 props2
 updateBinaryProps MHadamardProduct props1 props2 _ _ = updateBinaryClosedProps [Diagonal, Symmetric, PosDef, LowerTriangular] props1 props2 -- PosDef is preserved by the Schur product theorem
 updateBinaryProps MLinSolve props1 props2 _ _ = updateBinaryClosedProps [] props1 props2
+updateBinaryProps MTriSolve props1 props2 _ _ = updateBinaryClosedProps [] props1 props2
 updateBinaryProps MCholSolve props1 props2 _ _ = updateBinaryClosedProps [] props1 props2
 
 -- try to prove positive-definiteness for a standard matrix product
@@ -295,15 +304,24 @@ treeFLOPs (Branch2 MScalarProduct t1 t2) tbl =
            flops2 <- treeFLOPs t2 tbl
            return $ r*c + flops1 + flops2
 
--- assume LU decomposition: 2/3n^3 to do the decomposition,
--- plus 2n^2 to solve for each column of the result.
 treeFLOPs (Branch2 MLinSolve t1 t2) tbl =
         do (Matrix r1 _ _) <- treeMatrix t1 tbl
            (Matrix _ c2 _) <- treeMatrix t2 tbl
            flops1 <- treeFLOPs t1 tbl
            flops2 <- treeFLOPs t2 tbl
+           -- assume LU decomposition: 2/3n^3 to do the decomposition,
+           -- plus 2n^2 to solve for each column of the result.
            return $ 2 * ((r1 * r1 * r1) `quot` 3 + (c2 * r1 * r1) ) +
                 flops1 + flops2
+
+treeFLOPs (Branch2 MTriSolve t1 t2) tbl =
+        do (Matrix r1 _ _) <- treeMatrix t1 tbl
+           (Matrix _ c2 _) <- treeMatrix t2 tbl
+           flops1 <- treeFLOPs t1 tbl
+           flops2 <- treeFLOPs t2 tbl
+           -- just do back-substitution
+           return $ (c2 * r1 * r1) + flops1 + flops2
+
 treeFLOPs (Branch2 MCholSolve t1 t2) tbl =
         do (Matrix r1 _ _) <- treeMatrix t1 tbl
            (Matrix _ c2 _) <- treeMatrix t2 tbl

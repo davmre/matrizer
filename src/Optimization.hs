@@ -379,6 +379,8 @@ binopSumRules :: Rules
 binopSumRules = [commonFactorLeft
                 , commonFactorRight
                 , matrixInvLemmaRight
+                , assocSum
+                , commuteSum
                 ]
 
 binopProductRules :: Rules
@@ -410,6 +412,7 @@ inverseRules = [distributeInverse
                , matrixInvLemmaLeft
                , invariantIdentity
                , invToCholInv
+               , cholSolvetoTri
                ]
 
 transposeRules :: Rules
@@ -464,6 +467,15 @@ groundSubExprHelper (Branch3 op a b c) v subexpr = Branch3 op (groundSubExprHelp
 groundSubExprHelper (Let lhs rhs tmp body) v subexpr = Let lhs (groundSubExprHelper rhs v subexpr) tmp (groundSubExprHelper body v subexpr)
 groundSubExprHelper e v subexpr = e
 
+assocSum :: Rule
+assocSum _ (Branch2 MSum (Branch2 MSum l c) r) = Just (Branch2 MSum l (Branch2 MSum c r))
+assocSum _ (Branch2 MSum l (Branch2 MSum c r)) = Just (Branch2 MSum (Branch2 MSum l c) r)
+assocSum _ _ = Nothing
+
+commuteSum :: Rule
+commuteSum _ (Branch2 MSum a b) = Just (Branch2 MSum b a)
+commuteSum _ _ = Nothing
+
 -- (AB)C -> A(BC)
 -- A(BC) -> (AB)C
 assocMult :: Rule
@@ -515,6 +527,8 @@ literalScalars _ (Branch1 (MElementWise MExp) (LiteralScalar x)) = Just (Literal
 literalScalars _ (Branch1 (MElementWise MLog) (LiteralScalar x)) = Just (LiteralScalar (log x))
 literalScalars _ (Branch1 (MElementWise MReciprocal) (LiteralScalar x)) = Just (LiteralScalar (1.0/x))
 literalScalars _ (Branch1 MInverse (LiteralScalar x)) = Just (LiteralScalar (1.0/x))
+literalScalars _ (Branch2 MScalarProduct (LiteralScalar (-1.0)) a) = Just (Branch1 (MElementWise MNegate) a)
+literalScalars _ (Branch2 MScalarProduct (LiteralScalar (1.0)) a) = Just a
 literalScalars _ _ = Nothing
 
 commuteScalarProduct :: Rule
@@ -713,12 +727,27 @@ hadamardProductCommute _ _ = Nothing
 invToLinsolve :: Rule
 invToLinsolve tbl (Branch2 MProduct (Branch1 MInverse l) r) =
         let Right (Matrix _ _ props) = treeMatrix l tbl in
-            if PosDef `elem` props
-                then Just (Branch2 MCholSolve (Branch1 MChol l) r)
-                else Just (Branch2 MLinSolve l r)
+            if LowerTriangular `elem` props
+            then Just (Branch2 MTriSolve l r)
+            else if PosDef `elem` props
+            then Just (Branch2 MCholSolve (Branch1 MChol l) r)
+            else Just (Branch2 MLinSolve l r)
 invToLinsolve _ _ = Nothing
 
+-- y' (K\y) -> (Ly)'(Ly) where L is the cholesky decomp. of K
+-- this should be provable from other rules, but this seems to help
+-- escape local minima
+cholSolvetoTri :: Rule
+cholSolvetoTri _ (Branch2 MProduct (Branch1 MTranspose a) (Branch2 MCholSolve b c)) = 
+               if (a==c)
+               then Just (Branch2 MProduct (Branch1 MTranspose (Branch2 MTriSolve b c)) (Branch2 MTriSolve b c))
+               else Nothing
+cholSolvetoTri _ _ = Nothing
+
 -- HACK to apply Cholesky decomposition to the inverses of leaf nodes.
+-- we could instead allow replacing *all* posdef expressions by their 
+-- Cholesky decompositions, but then we have to compute properties for
+-- every subexpression. Limiting to leaves seems more efficient for now.
 invToCholInv :: Rule
 invToCholInv tbl (Branch1 MInverse l@(Leaf _)) =
       let Right (Matrix _ _ props) = treeMatrix l tbl in
