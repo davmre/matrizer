@@ -1,8 +1,0 @@
-# test cancellation of inverses, and removal of extraneous tmp variables
-
-X: n x n
-
-n ~ 100
-
-A = X * X^-1;
-B = (X+I)^-1 * (X+I);

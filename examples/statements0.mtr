@@ -1,8 +1,0 @@
-# simple matrix-vector multiplication
-
-A: n x n
-x: n x 1
-n ~ 100
-
-y=A x;
-z=x'y;

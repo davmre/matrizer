@@ -1,8 +1,10 @@
 # simple matrix-vector multiplication
 
 A: n x n
-B: n x n
 x: n x 1
+k: n x 1
+w: n x 1
 n ~ 100
 
-r = A B x
+y=k'(A x);
+z=w'(A x);

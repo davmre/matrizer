@@ -6,5 +6,6 @@ k: n x 1
 w: n x 1
 n ~ 100
 
-tmp y=k'(A x);
-z=w'(A x);
+tmp Ax = A*x;
+y=k' Ax;
+z=w' Ax;

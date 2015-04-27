@@ -33,7 +33,7 @@ http://www.haskell.org/cabal/FAQ.html.
 
 Try running an example:
 
-    dist/build/matrizer/matrizer examples/normaleqns.mtr
+    dist/build/matrizer/matrizer tests/normaleqns.mtr
 
 This should output:
 
@@ -51,7 +51,7 @@ This should output:
     Optimized code generated:
     w = scipy.linalg.cho_solve(scipy.linalg.cho_factor(np.dot(X.T, X)), np.dot(X.T, y))
 
-You can also run the optimizer regression tests:
+You can also run the full suite of optimizer regression tests:
 
     dist/build/matrizer/matrizer test
 

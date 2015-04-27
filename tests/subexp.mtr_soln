@@ -1,0 +1,5 @@
+K: n x n posdef
+n ~ 100
+
+A = K^-1;
+B = A + A
