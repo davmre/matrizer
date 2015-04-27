@@ -354,13 +354,6 @@ mapMaybeFunc x (f:fs) =
 -- selected against, but are perfectly legal (and sometimes necessary
 -- as intermediate steps).
 --
--- The major current restriction on optimizations is that they should
--- generate at most a finite group of results: thus 'right-multiply by
--- the identity' is not currently allowed as an optimization, since it
--- generates AI, AII, AIII, etc. and will thus yield an infinitely
--- large set of transformed expressions. This could be fixed in the
--- future by imposing a maximum search depth.
---
 -- To add a new optimization: make sure to include it in the list of
 -- optimizationRules. This list is consulted by optimizeNode to
 -- generate all possible transformed versions of a subtree.
@@ -467,11 +460,13 @@ groundSubExprHelper (Branch3 op a b c) v subexpr = Branch3 op (groundSubExprHelp
 groundSubExprHelper (Let lhs rhs tmp body) v subexpr = Let lhs (groundSubExprHelper rhs v subexpr) tmp (groundSubExprHelper body v subexpr)
 groundSubExprHelper e v subexpr = e
 
+-- (A+B)+C <-> A+(B+C)
 assocSum :: Rule
 assocSum _ (Branch2 MSum (Branch2 MSum l c) r) = Just (Branch2 MSum l (Branch2 MSum c r))
 assocSum _ (Branch2 MSum l (Branch2 MSum c r)) = Just (Branch2 MSum (Branch2 MSum l c) r)
 assocSum _ _ = Nothing
 
+-- A+B <-> B+A
 commuteSum :: Rule
 commuteSum _ (Branch2 MSum a b) = Just (Branch2 MSum b a)
 commuteSum _ _ = Nothing
@@ -625,11 +620,6 @@ detProps _ (Branch1 MDet (Branch1 MInverse a)) = Just (Branch1 (MElementWise MRe
 -- todo: add other properties
 detProps _ _ = Nothing
 
--- option 1: add direct shortcut for logdet of psd
--- option 2: allow replacing posdef with chol, then add det of triangular matrices and depend on rewrite rules
--- maybe have both? 
-
-
 logdet :: Rule
 logdet tbl  (Branch1 (MElementWise MLog) (Branch1 MDet  a)) = 
        let Right (Matrix _ _ props) = treeMatrix a tbl in
@@ -668,9 +658,8 @@ invDiag _ (Branch1 MInverse (Branch1 MDiagVM a)) = Just (Branch1 MDiagVM (Branch
 invDiag _ _ = Nothing
 
 -- TODO:
--- inverse of diagonal matrix
 -- determinant of a diagonal matrix
--- log determinants of arbitrary matrices via cholesky decomposition
+
 
 
 -- exp(log(a)) = a
@@ -735,8 +724,8 @@ invToLinsolve tbl (Branch2 MProduct (Branch1 MInverse l) r) =
 invToLinsolve _ _ = Nothing
 
 -- y' (K\y) -> (Ly)'(Ly) where L is the cholesky decomp. of K
--- this should be provable from other rules, but this seems to help
--- escape local minima
+-- this should be provable from other rules, but including it explicitly 
+-- seems to help escape local minima.
 cholSolvetoTri :: Rule
 cholSolvetoTri _ (Branch2 MProduct (Branch1 MTranspose a) (Branch2 MCholSolve b c)) = 
                if (a==c)
