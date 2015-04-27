@@ -41,13 +41,13 @@ exprType strict (Branch2 MHadamardProduct t1 t2) tbl = updateMatrixBinaryOp stri
 exprType strict (Branch2 MSum t1 t2) tbl = updateMatrixBinaryOp strict sumSizeCheck truePropCheck sumNewSize MSum t1 t2 tbl
 exprType strict (Branch1 MInverse t) tbl = updateMatrixUnaryOp strict squareCheck (const True) sameSize MInverse t tbl
 exprType strict (Branch1 MTranspose t) tbl = updateMatrixUnaryOp strict trueCheck (const True) transSize MTranspose t tbl
-exprType strict (Branch1 MNegate t) tbl = updateMatrixUnaryOp strict squareCheck (const True) sameSize MNegate t tbl
 exprType strict (Branch1 MChol t) tbl = updateMatrixUnaryOp strict squareCheck (elem PosDef) sameSize MChol t tbl
 exprType strict (Branch1 MTrace t) tbl = updateMatrixUnaryOp strict squareCheck (const True) scalarSize MTrace t tbl
 exprType strict (Branch1 MDet t) tbl = updateMatrixUnaryOp strict squareCheck (const True) scalarSize MDet t tbl
 exprType strict (Branch1 MDiagMV t) tbl = updateMatrixUnaryOp strict squareCheck (const True) diagMVSize MDiagMV t tbl
 exprType strict (Branch1 MDiagVM t) tbl = updateMatrixUnaryOp strict vectorCheck (const True) diagVMSize MDiagVM t tbl
 exprType strict (Branch1 MEntrySum t) tbl = updateMatrixUnaryOp strict trueCheck (const True) scalarSize MEntrySum t tbl
+exprType strict (Branch1 (MElementWise sop) t) tbl = updateMatrixUnaryOp strict trueCheck (const True) sameSize (MElementWise sop) t tbl      
 exprType strict n@(Let lhs rhs tmp body) tbl = do newtbl <- tblBind n tbl
                                                   exprType strict body newtbl
 
@@ -257,11 +257,11 @@ ternProductPosDef props1 props2 _ l _ r = (PosDef `elem` props1) && (PosDef `ele
 updateProps :: UnOp -> [MProperty] -> [MProperty]
 updateProps MInverse props   = intersect [Diagonal, Symmetric, PosDef, LowerTriangular] props
 updateProps MTranspose props = intersect [Diagonal, Symmetric, PosDef] props
-updateProps MNegate  props  = intersect [Diagonal, Symmetric] props
 updateProps MChol props = [LowerTriangular ] ++ (intersect [Diagonal ] props)
 updateProps MDet props = scalarProps
 updateProps MTrace props = scalarProps
 updateProps MEntrySum props = scalarProps
+updateProps (MElementWise _) props = intersect [Diagonal, Symmetric, LowerTriangular] props
 updateProps MDiagVM props = [Diagonal, Symmetric, LowerTriangular]
 updateProps MDiagMV props = []
 
@@ -310,6 +310,14 @@ treeFLOPs (Branch2 MCholSolve t1 t2) tbl =
            flops1 <- treeFLOPs t1 tbl
            flops2 <- treeFLOPs t2 tbl
            return $ (2 * c2 * r1 * r1) + flops1 + flops2
+
+treeFLOPs (Branch2 MSum t1 (Branch1 (MElementWise MNegate) t2)) tbl =
+        do (Matrix r1 c1 _) <- treeMatrix t1 tbl
+           (Matrix _ _ _) <- treeMatrix t2 tbl
+           flops1 <- treeFLOPs t1 tbl
+           flops2 <- treeFLOPs t2 tbl
+           return $ r1 * c1 + flops1 + flops2
+
 treeFLOPs (Branch2 MSum t1 t2) tbl =
         do (Matrix r1 c1 _) <- treeMatrix t1 tbl
            (Matrix _ _ _) <- treeMatrix t2 tbl
@@ -335,7 +343,6 @@ treeFLOPs (Branch1 MInverse t) tbl =
            else return $ (3 * r * r * r) `quot` 4 + flops
 treeFLOPs (Branch1 MTranspose t) tbl = do n <- treeFLOPs t tbl 
                                           return $ n + transposecost_CONST
-treeFLOPs (Branch1 MNegate t) tbl = treeFLOPs t tbl
 treeFLOPs (Branch1 MChol t) tbl =
         do (Matrix r _ _) <- treeMatrix t tbl
            flops <- treeFLOPs t tbl
@@ -366,6 +373,10 @@ treeFLOPs (Branch1 MEntrySum t) tbl =
              flops <- treeFLOPs t tbl
              return $ r*c + flops
 
+treeFLOPs (Branch1 (MElementWise _) t) tbl = 
+          do (Matrix r c _) <- treeMatrix t tbl
+             flops <- treeFLOPs t tbl
+             return $ r*c + flops
 
 treeFLOPs (Let lhs rhs tmp body) tbl = do letMatrix <- treeMatrix rhs tbl
                                           letFLOPs <- treeFLOPs rhs tbl

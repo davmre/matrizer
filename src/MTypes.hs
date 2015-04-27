@@ -31,14 +31,20 @@ data BinOp = MProduct
 
 data UnOp = MInverse
           | MTranspose
-          | MNegate
           | MChol
           | MTrace
           | MDet
           | MDiagVM -- convert a vector to a diagonal matrix
           | MDiagMV -- extract a matrix diagonal as a vector
           | MEntrySum
-          deriving (Eq, Ord, Enum)
+          | MElementWise ScalarOp
+          deriving (Eq, Ord)
+
+data ScalarOp = MLog
+              | MExp -- TODO: support matrix exponentials
+              | MReciprocal
+              | MNegate
+              deriving (Eq, Ord, Enum)
 
 -- AST pretty printing
 
@@ -58,13 +64,19 @@ instance Show BinOp where
 instance Show UnOp where
     show MInverse = "inv"
     show MTranspose = "transpose"
-    show MNegate = "neg"
     show MChol = "chol"
     show MTrace = "tr"
     show MDet = "det"
     show MDiagVM = "diag"
     show MDiagMV = "diag"
     show MEntrySum = "sum"
+    show (MElementWise sop) = show sop
+
+instance Show ScalarOp where
+    show MLog = "log"
+    show MExp = "exp"
+    show MReciprocal = "recip"
+    show MNegate = "neg"
 
 instance Show Expr where
     show (Leaf a) = a

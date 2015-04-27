@@ -43,11 +43,14 @@ TokenParser{ parens = m_parens
 ----------------------------------------------------------------
 
 table :: OperatorTable String u Identity Expr
-table = [ [Prefix (m_reservedOp "-" >> return (Branch1 MNegate))] -- note: this will parse A-B as A * (-B)
+table = [ [Prefix (m_reservedOp "-" >> return (Branch1 (MElementWise MNegate)))] -- note: this will parse A-B as A * (-B)
         , [Prefix (m_reservedOp "tr" >> return (Branch1 MTrace))] 
         , [Prefix (m_reservedOp "det" >> return (Branch1 MDet))] 
         , [Prefix (m_reservedOp "sum" >> return (Branch1 MEntrySum))] 
         , [Prefix (m_reservedOp "diag" >> return (Branch1 MDiagMV))] -- guess which diag is meant and fix in preprocessing analysis 
+        , [Prefix (m_reservedOp "exp" >> return (Branch1 (MElementWise MExp)))] 
+        , [Prefix (m_reservedOp "log" >> return (Branch1 (MElementWise MLog)))] 
+        , [Prefix (m_reservedOp "recip" >> return (Branch1 (MElementWise MReciprocal)))] 
         , [Postfix (m_reservedOp "^-1" >> return (Branch1 MInverse))]
         , [Postfix (m_reservedOp "'" >> return (Branch1 MTranspose))]
         , [Infix (m_reservedOp "*" >> return (Branch2 MProduct)) AssocLeft]
