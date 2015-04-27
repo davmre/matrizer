@@ -1,0 +1,9 @@
+# normal equations for linear regression
+
+X: n x d
+y: n x 1
+
+n ~ 100
+d ~ 5
+
+w = ( chol(X' X) ) \cholsolve (X' y)

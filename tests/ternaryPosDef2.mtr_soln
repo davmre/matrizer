@@ -1,1 +1,1 @@
-r = A \ (B \ (A * x))
+r = A \ ( chol(B) \cholsolve (A * x))

@@ -1,2 +1,2 @@
 tmp invA = A^-1;
-r = invA * (B\(invA' * x))
+r = invA * ( chol(B) \cholsolve (invA' * x))

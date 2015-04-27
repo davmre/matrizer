@@ -1,3 +1,1 @@
-tmp r1 = y' y ;
-tmp r2 = y' * psi1 * (psi2 + Kuu)^-1 * psi1' * y;
-r = r1 + r2;
+r = y' * (y + psi1 * ( chol(Kuu + psi2) \cholsolve (psi1' * y) ))

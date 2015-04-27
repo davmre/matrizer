@@ -1,1 +1,2 @@
-r = A \ (B \ (A \ x))
+tmp tmp1 = chol(A);
+r = tmp1 \cholsolve ( chol(B) \cholsolve  (tmp1 \cholsolve x))
