@@ -35,7 +35,7 @@ extractTests files tests
 runTestFile :: String -> IO ()
 runTestFile fname = do (tbl, test_tree, soln_tree) <- readTest fname
                        case runTest (tbl, test_tree, soln_tree) of
-                            (Right (f1, f2, f3)) -> putStrLn $ fname ++ ": naive " ++ show f1 ++ " target " ++ show f2 ++ " optimized " ++ show f3 ++ (if (f3 < f2) then " WIN!" else if (f3 == f2) then " PASS" else " FAIL")
+                            (Right (f1, f2, f3)) -> putStrLn $ fname ++ ": naive " ++ show f1 ++ " target " ++ show f2 ++ " optimized " ++ show f3 ++ (if (f3 < f2) then " WIN!" else if (f3 == f2) then " PASS" else " FAIL*******")
                             (Left err) -> putStrLn (fname ++ ": " ++ (show err) ++ " ERROR***")
 
 type OptimizerTest = (SymbolTable, Expr, Expr)
