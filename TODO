@@ -9,16 +9,20 @@
 	- Optimizer should 'show its work' and return a list of
           rewrite rules applied
 - Other matrix operations (with appropriate optimizer rewrite rules):
-  	- decompositions: eigenvalue, SVD, QR
-	- diag() operator
+  	- decompositions: eigenvalue, SVD, QR, LU
 	- matrix derivatives
 	- Kronecker and Hadamard (pointwise) products
+	- "solve" functionality for implicitly defined variables
+	  (e.g. solve for X,D in AX=XD, with D diag, should find 
+	  eigendecomposition of A)
 - Other matrix properties:
   	- unitary
   	- stochastic
 	- rotation matrices (always commute with each other)
 	- real/complex
 	- singular / invertible
+- Code generator should be smarter about parenthesis/order of
+  operations.
 - Explicit consideration of numeric stability (currently we just
   assume that fewer FLOPs is better). Give each matrix a condition
   number, then calculate stability of the resulting expression.
