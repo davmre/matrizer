@@ -429,7 +429,8 @@ traceRules = [dissolveTrace
 
 detRules :: Rules
 detRules = [factorDet
-            , detProps]
+            , detProps
+            , logdet]
 
 diagRules :: Rules
 diagRules = [cancelDiag
@@ -602,11 +603,30 @@ factorDet tbl (Branch2 MProduct (Branch1 MDet a) (Branch1 MDet b)) =
           else Nothing
 factorDet _ _ = Nothing
 
--- 
+-- det(A') = det(A)
+-- det(A^-1) = 1/det(A)
 detProps :: Rule
 detProps _ (Branch1 MDet (Branch1 MTranspose a)) = Just (Branch1 MDet a)
+detProps _ (Branch1 MDet (Branch1 MInverse a)) = Just (Branch1 (MElementWise MReciprocal) (Branch1 MDet a))
 -- todo: add other properties
 detProps _ _ = Nothing
+
+-- option 1: add direct shortcut for logdet of psd
+-- option 2: allow replacing posdef with chol, then add det of triangular matrices and depend on rewrite rules
+-- maybe have both? 
+
+
+logdet :: Rule
+logdet tbl  (Branch1 (MElementWise MLog) (Branch1 MDet  a)) = 
+       let Right (Matrix _ _ props) = treeMatrix a tbl in
+           if LowerTriangular `elem` props
+           then Just (Branch1 MEntrySum (Branch1 (MElementWise MLog) (Branch1 MDiagMV a)))
+           else if PosDef `elem` props 
+           then Just (Branch2 MScalarProduct (LiteralScalar 2) (Branch1 MEntrySum (Branch1 (MElementWise MLog) (Branch1 MDiagMV (Branch1 MChol a)))))
+           else Nothing
+-- TODO: add LU decomposition for non-posdef matrices
+logdet _ _ = Nothing
+
 
 -- diag(diag(x)) -> x for vector x
 -- diag(diag(A)) -> A for diagonal matrices A

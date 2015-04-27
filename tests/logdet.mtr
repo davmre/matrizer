@@ -1,0 +1,5 @@
+A: n x n posdef
+
+n ~ 100
+
+r = log(det(A))

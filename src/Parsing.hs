@@ -51,6 +51,7 @@ table = [ [Prefix (m_reservedOp "-" >> return (Branch1 (MElementWise MNegate)))]
         , [Prefix (m_reservedOp "exp" >> return (Branch1 (MElementWise MExp)))] 
         , [Prefix (m_reservedOp "log" >> return (Branch1 (MElementWise MLog)))] 
         , [Prefix (m_reservedOp "recip" >> return (Branch1 (MElementWise MReciprocal)))] 
+        , [Prefix (m_reservedOp "chol" >> return (Branch1 MChol))] 
         , [Postfix (m_reservedOp "^-1" >> return (Branch1 MInverse))]
         , [Postfix (m_reservedOp "'" >> return (Branch1 MTranspose))]
         , [Infix (m_reservedOp "*" >> return (Branch2 MProduct)) AssocLeft]
@@ -134,6 +135,7 @@ parseMProp = do propName <- many1 letter
                             "posdef" -> PosDef
                             "pd" -> PosDef
                             "diag" -> Diagonal
+                            "ltri" -> LowerTriangular
                             
 parsePropList :: Parser [MProperty]
 parsePropList = sepBy parseMProp $ many1 $ oneOf " \t,"
