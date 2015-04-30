@@ -363,7 +363,7 @@ treeFLOPs (Branch1 MInverse t) tbl =
            -- LU decomposition plus forward/back substitution
            -- http://mathforcollege.com/nm/simulations/nbm/04sle/nbm_sle_sim_inversecomptime.pdf
            let luflops = (2*r*r*r) `quot` 3
-               subflops = r*(r*r + r) `quot` 2
+               subflops = r*(r*r + r) 
            return $ luflops + subflops + flops
 
 treeFLOPs (Branch1 MTranspose t) tbl = do n <- treeFLOPs t tbl 
