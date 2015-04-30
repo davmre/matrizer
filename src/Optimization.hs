@@ -721,6 +721,11 @@ invToLinsolve tbl (Branch2 MProduct (Branch1 MInverse l) r) =
             else if PosDef `elem` props
             then Just (Branch2 MCholSolve (Branch1 MChol l) r)
             else Just (Branch2 MLinSolve l r)
+invToLinsolve tbl (Branch1 MInverse l) = 
+        let Right (Matrix r _ props) = treeMatrix l tbl in
+            if LowerTriangular `elem` props
+            then Just (Branch2 MTriSolve l (IdentityLeaf r))
+            else Nothing
 invToLinsolve _ _ = Nothing
 
 -- y' (K\y) -> (Ly)'(Ly) where L is the cholesky decomp. of K
