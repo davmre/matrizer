@@ -1,0 +1,12 @@
+K: n x n 
+x: n x 1
+y: n x 1
+z: n x 1
+
+n ~ 100
+
+# TODO: should find LU decomposition once, then re-use factors
+tmp invK = K^-1;
+a = invK x;
+b = invK y;
+c = invK z

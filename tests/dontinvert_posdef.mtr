@@ -1,0 +1,10 @@
+K: n x n posdef
+x: n x 1
+y: n x 1
+z: n x 1
+
+n ~ 100
+
+a = K^-1 x;
+b = K^-1 y;
+c = K^-1 z

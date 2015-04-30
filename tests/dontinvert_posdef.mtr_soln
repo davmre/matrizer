@@ -1,0 +1,11 @@
+K: n x n posdef
+x: n x 1
+y: n x 1
+z: n x 1
+
+n ~ 100
+
+tmp L = chol(K);
+a = L \cholsolve x;
+b = L \cholsolve y;
+c = L \cholsolve z
