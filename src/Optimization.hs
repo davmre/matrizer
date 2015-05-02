@@ -457,7 +457,10 @@ groundSubExprHelper (Leaf a) v subexpr = if (a == v) then subexpr else (Leaf a)
 groundSubExprHelper (Branch1 op a) v subexpr = Branch1 op (groundSubExprHelper a v subexpr)
 groundSubExprHelper (Branch2 op a b) v subexpr = Branch2 op (groundSubExprHelper a v subexpr) (groundSubExprHelper b v subexpr)
 groundSubExprHelper (Branch3 op a b c) v subexpr = Branch3 op (groundSubExprHelper a v subexpr) (groundSubExprHelper b v subexpr) (groundSubExprHelper c v subexpr)
-groundSubExprHelper (Let lhs rhs tmp body) v subexpr = Let lhs (groundSubExprHelper rhs v subexpr) tmp (groundSubExprHelper body v subexpr)
+groundSubExprHelper (Let lhs rhs tmp body) v subexpr = 
+                    if rhs == (Leaf v) -- special case of an existing variable that is redundant with the one we're substituting
+                    then Let lhs (groundSubExprHelper rhs v subexpr) tmp (groundSubExprHelper body v (Leaf lhs))
+                    else Let lhs (groundSubExprHelper rhs v subexpr) tmp (groundSubExprHelper body v subexpr)
 groundSubExprHelper e v subexpr = e
 
 -- (A+B)+C <-> A+(B+C)
