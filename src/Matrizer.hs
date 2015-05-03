@@ -38,6 +38,8 @@ main :: IO ()
 main = do args <- getArgs
           if (head args) == "test"
           then runTests
+          else if (head args) == "genpython"
+          then writePythonTests
           else runFile $ head args
 
 runFile :: String -> IO ()

@@ -51,11 +51,7 @@ This should output:
     Optimized code generated:
     w = scipy.linalg.cho_solve(scipy.linalg.cho_factor(np.dot(X.T, X)), np.dot(X.T, y))
 
-You can also run the full suite of optimizer regression tests:
-
-    dist/build/matrizer/matrizer test
-
-There is currently no documentation, but the examples provide a
+There is currently no documentation, but the test cases provide a
 reasonable guide to what's possible.  Currently we support basic
 matrix operations (addition, multiplication, inverse, transpose,
 negation, solving linear systems using LU or Cholesky decompositions),
@@ -63,3 +59,33 @@ matrix properties (diagonal, symmetric, positive definite), and many
 of the obvious algebraic rewrite rules.
 
 See the file TODO for features we hope to implement.
+
+-----
+Running tests
+
+Test cases are stored in the tests/ folder, with the convention that
+each file containing a test case is accompanied by another file with
+the "_soln" suffix containing a 'gold-standard' optimized version. 
+
+The command
+
+    dist/build/matrizer/matrizer test
+
+runs the optimizer on all test cases, comparing FLOP counts against 
+the provided solutions. 
+
+To test for semantic correctness and/or real-world speed, the commands
+
+    dist/build/matrizer/matrizer genpython
+    python tests/test_generated_python.py
+
+will generate Python source code for the naive and optimized versions
+of each test case, using random Gaussian matrices, and compare the
+results. Note that numeric instability may sometimes cause two
+semantically-equivalent programs to yield different results on real
+matrices. Often the optimized program is more stable than the original,
+since fewer operations means fewer chances for numerical blowup, but 
+there are no guarantees. 
+
+
+

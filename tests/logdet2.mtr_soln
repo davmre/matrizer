@@ -1,1 +1,1 @@
-r = sum(log(diag(A)))
+r = sum(log(diag(A + I + -(diag(diag(A))))))

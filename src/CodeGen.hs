@@ -25,7 +25,7 @@ generateNumpy (Branch2 MProduct t1 t2) = "np.dot(" ++ (generateNumpy t1) ++
                                           ", " ++ (generateNumpy t2)  ++ ")" 
 generateNumpy (Branch2 MScalarProduct t1 t2) = "( " ++ (generateNumpy t1) ++ " * "
                                                   ++ (generateNumpy t2)  ++ ")" 
-generateNumpy (Branch2 MColProduct t1 t2) = "( " ++ (generateNumpy t1) ++ " * "
+generateNumpy (Branch2 MColProduct t1 t2) = "( " ++ (generateNumpy t1) ++ ".flatten() * "
                                                   ++ (generateNumpy t2)  ++ ")" 
 generateNumpy (Branch2 MSum t1 (Branch1 (MElementWise MNegate) t2)) = "(" ++ (generateNumpy t1) ++ " - " ++ (generateNumpy t2) ++ ")"
 generateNumpy (Branch2 MSum t1 t2) = "(" ++ (generateNumpy t1) ++ " + " ++ (generateNumpy t2) ++ ")"
@@ -40,13 +40,33 @@ generateNumpy (Branch1 MChol t) = "np.linalg.cholesky(" ++ (generateNumpy t) ++ 
 generateNumpy (Branch1 MTrace t) = "np.trace(" ++ (generateNumpy t) ++ ")"
 generateNumpy (Branch1 MDet t) = "np.linalg.det(" ++ (generateNumpy t) ++ ")"
 generateNumpy (Branch1 MDiagMV t) = "np.diag(" ++ (generateNumpy t) ++ ")"
-generateNumpy (Branch1 MDiagVM t) = "np.diag(" ++ (generateNumpy t) ++ ")"
+generateNumpy (Branch1 MDiagVM t) = "np.diag(" ++ (generateNumpy t) ++ ".flatten())"
 generateNumpy (Branch1 MEntrySum t) = "np.sum(" ++ (generateNumpy t) ++ ")"
 
 -- we use "empty" let expressions do denote the final quantitity to be computed, but we don't actually
 -- need to generate a body for such expressions
 generateNumpy (Let lhs rhs tmp (Leaf _)) = lhs ++ " = " ++ (generateNumpy rhs) 
 generateNumpy (Let lhs rhs tmp body) = lhs ++ " = " ++ (generateNumpy rhs) ++ "\n" ++ (generateNumpy body)
+
+
+---------------------------
+-- generate a symbol table as a set of random matrices: used for testing
+
+generateTableNumpy :: SymbolTable -> String
+generateTableNumpy tbl = foldr (++) "" (map generateMatrixNumpy (Map.toList tbl))
+
+generateMatrixNumpy (v, (Matrix r c props)) = 
+                    let randn r c = "np.random.randn(" ++ (show r) ++ ", " ++ (show c) ++ ")" in
+                        if PosDef `elem` props
+                        then "Ltmp = " ++ (randn r r) ++ "\n" ++ v ++ " = np.dot(Ltmp.T, Ltmp)\n"
+                        else if LowerTriangular `elem` props
+                        then v ++ "= np.tril(" ++ (randn r c) ++ ")\n"
+                        else if Symmetric `elem` props
+                        then "Stmp = " ++ (randn r c) ++ "\n" ++ v ++ " = Stmp + Smpt.T\n"
+                        else if Diagonal `elem` props
+                        then v ++ "= np.diag(np.random.randn(" ++ (show r) ++ "))\n"
+                        else v ++ " = " ++ (randn r c) ++ "\n"
+
 
 ---------------------------------------------------------------------------------------------------
 -- Code generation for MATLAB

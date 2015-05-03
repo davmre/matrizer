@@ -11,3 +11,4 @@ Matrizer
 .cabal-sandbox/
 cabal.sandbox.config
 cabal.config
+tests/gen_python

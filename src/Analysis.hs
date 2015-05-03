@@ -411,3 +411,8 @@ treeFLOPs (Let lhs rhs tmp body) tbl = do letMatrix <- treeMatrix rhs tbl
                                           bodyFLOPs <- (treeFLOPs body newtbl)
                                           return $ letFLOPs + bodyFLOPs + letcost_CONST
 
+targets :: Expr ->  [VarName]
+targets (Let lhs rhs tmp body)= if tmp 
+                                then targets body
+                                else [lhs] ++ targets body 
+targets _ = []

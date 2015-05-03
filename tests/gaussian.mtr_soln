@@ -7,4 +7,4 @@ n ~ 100
 
 tmp L = chol(K);
 tmp z = L\y;
-r = 0.5*(z' z + n*log(2*pi)) + sum(log(diag(L)))
+r = 0.5*(z' z + 1.8378762217451237*n) + sum(log(diag(L)))

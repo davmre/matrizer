@@ -4,6 +4,7 @@ import MTypes
 import Parsing
 import Analysis
 import Optimization
+import CodeGen
 
 import Control.Monad
 import System.Directory
@@ -12,6 +13,7 @@ import Data.List
 import qualified Data.Set as Set
 
 testdir = "tests"
+pythonTestdir = (combine testdir "gen_python")
 solution_suffix = "_soln"
 
 -- have a list of tests and a list of files
@@ -21,6 +23,11 @@ runTests :: IO ()
 runTests = do files <- getDirectoryContents testdir
               let testFiles = extractTests (Set.fromList files) []
               void $ mapM runTestFile testFiles
+
+writePythonTests :: IO ()
+writePythonTests = do files <- getDirectoryContents testdir
+                      let testFiles = extractTests (Set.fromList files) []
+                      void $ mapM writePythonTest testFiles
 
 extractTests :: Set.Set String -> [String] -> [String]                  
 extractTests files tests
@@ -58,3 +65,21 @@ runTest (tbl, t1, t2) = do st1 <- preprocess t1 tbl
                            soln_flops <- treeFLOPs st2 tbl
                            (opt, opt_flops) <- optimize st1 tbl
                            return $ (naive_flops, soln_flops, naive_flops + opt_flops)
+
+writePythonTest :: String -> IO ()
+writePythonTest  testname = do
+                (tbl, t1, _) <- readTest testname
+                let Right naive = preprocess t1 tbl
+                    Right m1 = typeCheck naive tbl
+                    Right (opt, opt_flops) = optimize naive tbl
+                    tablestr = generateTableNumpy tbl
+                    formatTarget v = "'" ++ v ++ "',"
+                    targetstr = "targets = [" ++ (unwords (map formatTarget (targets naive))) ++ "]"
+                    s1 = generateNumpy naive
+                    s2 = generateNumpy opt 
+                    testdir = (combine pythonTestdir (dropExtension testname))
+                createDirectoryIfMissing True testdir
+                writeFile (combine testdir "table.py") (tablestr ++ "\n" ++ targetstr ++ "\n") 
+                writeFile (combine testdir "naive.py") s1
+                writeFile (combine testdir "optimized.py") s2
+                putStrLn ("wrote python test: " ++ testdir)
