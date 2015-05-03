@@ -1,7 +1,7 @@
 matrizer
 ========
 
-matrizer is an optimizing compiler for matrix expressions. You give it an expression (currently in awkward custom MATLAB-like syntax), along with approximate sizes of the matrices involved, and it searches for a mathematically equivalent version of the expression requiring fewer FLOPs to compute. The result is output as code generated for your favorite numeric computing environment (currently Python/numpy and MATLAB are implemented). For example, the normal equations expression 
+matrizer is an optimizing compiler for matrix expressions. Given approximate sizes of the matrices involved, it searches for mathematically equivalent expressions requiring fewer FLOPs to compute. The result is output as Python/numpy or MATLAB code. For example, the normal equations expression 
  
     (X'X)^-1 X'y 
 
