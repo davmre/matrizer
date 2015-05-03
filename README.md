@@ -60,8 +60,8 @@ of the obvious algebraic rewrite rules.
 
 See the file TODO for features we hope to implement.
 
------
 Running tests
+-----
 
 Test cases are stored in the tests/ folder, with the convention that
 each file containing a test case is accompanied by another file with
