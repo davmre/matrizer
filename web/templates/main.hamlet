@@ -6,15 +6,21 @@
        <p><i>Beware:</i> this is still highly unpolished alpha-level software. Many features are missing, and there is no guarantee that the expressions output are optimal or even correct. It's best to think of the results as a source of inspiration rather than something to be blindly trusted.
        <p><b>An example to paste:</b>
        <pre>
+         \# variable declarations
          \K: n x n posdef
          \y: n x 1
+         \d: 1 x 1
          \
+         \# dimension estimates
          \n ~ 100
          \
+         \# expression to be optimized
          \tmp pi = 3.14159;
-         \r = 0.5*(y' K^-1 y) + 0.5*log(det(2*pi*K))
+         \r = 0.5*(y' K^-1 y) + 0.5*log(det(K)) + 0.5*d*log(2*pi)
+      <p><b>TODO:</b> write some documentation.
     <td width=10%>
-    <td width=45%>
+    <td width=45% align=right valign=top>
       <form method=post action=@{HomeR}>
         <textarea cols=80 rows=20 name=program>
         <input type=submit value="Optimize">
+<p>

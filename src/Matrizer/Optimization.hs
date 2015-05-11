@@ -603,8 +603,6 @@ factorDet tbl (Branch1 MDet (Branch2 MProduct a b)) =
           let Right (Matrix l1 r1 _) = treeMatrix a tbl in
               if (l1==r1) then Just (Branch2 MScalarProduct (Branch1 MDet a) (Branch1 MDet b))
               else Nothing
-factorDet tbl (Branch1 MDet (Branch2 MScalarProduct a b)) = 
-              Just (Branch2 MScalarProduct a (Branch1 MDet b))
 factorDet tbl (Branch2 MScalarProduct (Branch1 MDet a) (Branch1 MDet b)) = 
           let Right (Matrix l1 r1 _) = treeMatrix a tbl in
           let Right (Matrix l2 r2 _) = treeMatrix b tbl in
