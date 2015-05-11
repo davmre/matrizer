@@ -21,5 +21,5 @@ database:
   database: "_env:SQLITE_DATABASE:matrizerWeb.sqlite3"
   poolsize: "_env:SQLITE_POOLSIZE:10"
 
-copyright: Insert copyright statement here
-#analytics: UA-YOURCODE
+copyright: Dave Moore, 2015
+analytics: UA-62831814-1

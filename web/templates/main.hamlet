@@ -1,4 +1,20 @@
 <h1> Matrizer
-<form method=post action=@{OptimizeRawR}>
-    <textarea cols=80 rows=20 name=program>
-    <input type=submit>
+<table border=0>
+  <tr>
+    <td width=45% align=left valign=top>
+        <p>Matrizer is an optimizing compiler for matrix expressions. Given approximate sizes of the matrices involved, it searches for mathematically equivalent expressions requiring fewer FLOPs to compute. The result is output as Python/numpy or MATLAB code.
+       <p><i>Beware:</i> this is still highly unpolished alpha-level software. Many features are missing, and there is no guarantee that the expressions output are optimal or even correct. It's best to think of the results as a source of inspiration rather than something to be blindly trusted.
+       <p><b>An example to paste:</b>
+       <pre>
+         \K: n x n posdef
+         \y: n x 1
+         \
+         \n ~ 100
+         \
+         \tmp pi = 3.14159;
+         \r = 0.5*(y' K^-1 y) + 0.5*log(det(2*pi*K))
+    <td width=10%>
+    <td width=45%>
+      <form method=post action=@{HomeR}>
+        <textarea cols=80 rows=20 name=program>
+        <input type=submit value="Optimize">

@@ -603,6 +603,8 @@ factorDet tbl (Branch1 MDet (Branch2 MProduct a b)) =
           let Right (Matrix l1 r1 _) = treeMatrix a tbl in
               if (l1==r1) then Just (Branch2 MScalarProduct (Branch1 MDet a) (Branch1 MDet b))
               else Nothing
+factorDet tbl (Branch1 MDet (Branch2 MScalarProduct a b)) = 
+              Just (Branch2 MScalarProduct a (Branch1 MDet b))
 factorDet tbl (Branch2 MScalarProduct (Branch1 MDet a) (Branch1 MDet b)) = 
           let Right (Matrix l1 r1 _) = treeMatrix a tbl in
           let Right (Matrix l2 r2 _) = treeMatrix b tbl in
@@ -675,6 +677,11 @@ elementUnOps _ (Branch1 (MElementWise MExp) (Branch1 (MElementWise MLog) a)) = J
 elementUnOps _ (Branch1 (MElementWise MLog) (Branch1 (MElementWise MExp) a)) = Just a
 elementUnOps _ (Branch1 (MElementWise MNegate) (Branch1 (MElementWise MNegate) a)) = Just a
 elementUnOps _ (Branch1 (MElementWise MLog) (Branch2 MHadamardProduct a b)) = Just (Branch2 MSum (Branch1 (MElementWise MLog) a) (Branch1 (MElementWise MLog) b))
+elementUnOps tbl (Branch1 (MElementWise MLog) (Branch2 MScalarProduct a b)) = 
+               let Right (Matrix r1 c1 _) = treeMatrix b tbl in
+               if (r1==1) && (c1==1) 
+               then Just (Branch2 MSum (Branch1 (MElementWise MLog) a) (Branch1 (MElementWise MLog) b))
+               else Nothing
 elementUnOps _ (Branch2 MSum (Branch1 (MElementWise MLog) a) (Branch1 (MElementWise MLog) b)) = Just (Branch1 (MElementWise MLog) (Branch2 MHadamardProduct a b))
 elementUnOps _ (Branch1 (MElementWise MExp) (Branch2 MSum a b)) = Just (Branch2 MHadamardProduct (Branch1 (MElementWise MExp) a) (Branch1 (MElementWise MExp) b))
 elementUnOps _ (Branch2 MHadamardProduct (Branch1 (MElementWise MExp) a) (Branch1 (MElementWise MExp) b)) = Just (Branch1 (MElementWise MExp) (Branch2 MSum a b))
