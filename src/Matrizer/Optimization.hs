@@ -1,4 +1,4 @@
-module Optimization where
+module Matrizer.Optimization where
 
 import Data.Maybe
 import qualified Data.Map as Map
@@ -9,8 +9,8 @@ import Data.Ord
 
 import Control.Monad.Error
 
-import MTypes
-import Analysis
+import Matrizer.MTypes
+import Matrizer.Analysis
 
 import Debug.Trace
 

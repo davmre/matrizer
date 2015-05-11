@@ -1,6 +1,6 @@
 module Main where
 
-import Matrizer
+import Matrizer.Util
 import Tests 
 import System.Environment
 

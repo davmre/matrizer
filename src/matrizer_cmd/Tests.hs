@@ -1,10 +1,10 @@
 module Tests where
 
-import MTypes
-import Parsing
-import Analysis
-import Optimization
-import CodeGen
+import Matrizer.MTypes
+import Matrizer.Parsing
+import Matrizer.Analysis
+import Matrizer.Optimization
+import Matrizer.CodeGen
 
 import Control.Monad
 import System.Directory

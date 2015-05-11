@@ -6,8 +6,6 @@ cabal-dev
 *.chs.h
 .virtualenv
 *~
-Matrizer
-
 .cabal-sandbox/
 cabal.sandbox.config
 cabal.config

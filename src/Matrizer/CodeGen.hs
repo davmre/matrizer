@@ -1,7 +1,7 @@
-module CodeGen where
+module Matrizer.CodeGen where
 
 import qualified Data.Map as Map
-import MTypes
+import Matrizer.MTypes
 
 -----------------------------------------------------
 -- Code generation for numpy arrays

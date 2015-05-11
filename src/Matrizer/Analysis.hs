@@ -1,10 +1,10 @@
-module Analysis where
+module Matrizer.Analysis where
 
 import qualified Data.Map as Map
 import Data.List
 import Control.Monad.Error
 
-import MTypes
+import Matrizer.MTypes
 
 fakeSymbols :: SymbolTable
 fakeSymbols = Map.fromList [("A", Matrix 1000 1000 []), ("B", Matrix 1000 1000 []), ("x", Matrix 1000 1 [])]

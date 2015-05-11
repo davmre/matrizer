@@ -1,4 +1,4 @@
-module MTypes where
+module Matrizer.MTypes  where
 
 import qualified Data.Map as Map
 import Text.Parsec

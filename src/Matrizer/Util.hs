@@ -1,15 +1,15 @@
-module Matrizer 
+module Matrizer.Util 
 ( optimizeStr
 ) where
 
 import qualified Data.Map as Map
 
 
-import MTypes
-import Parsing
-import Optimization
-import Analysis
-import CodeGen
+import Matrizer.MTypes
+import Matrizer.Parsing
+import Matrizer.Optimization
+import Matrizer.Analysis
+import Matrizer.CodeGen
 
 ---------------------------------------------------------------
 

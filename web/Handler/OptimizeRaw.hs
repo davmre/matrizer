@@ -1,7 +1,7 @@
 module Handler.OptimizeRaw where
 
 import Import
-import Matrizer
+import Matrizer.Util
 
 getOptimizeRawR :: Handler Html
 getOptimizeRawR = defaultLayout $(widgetFile "main")

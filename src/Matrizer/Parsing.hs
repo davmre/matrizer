@@ -1,4 +1,6 @@
-module Parsing where
+module Matrizer.Parsing
+( readInput
+) where
 
 import Control.Applicative hiding ((<|>), many, optional)
 import Data.Maybe
@@ -12,7 +14,7 @@ import Control.Monad
 import Control.Monad.Error
 import Data.Functor.Identity
 
-import MTypes
+import Matrizer.MTypes
 
 linespaces :: Parser ()
 linespaces = skipMany $ oneOf " \t"
