@@ -165,7 +165,7 @@ parseSymbolDef = do linespaces
                     return $ SymbolLine c n
 
 parseComment :: Parser String
-parseComment = char '#' >> many (noneOf "\n")
+parseComment = char '#' >> many (noneOf "\r\n")
 
 parseBlankLine :: Parser PreambleLine
 parseBlankLine = do linespaces
@@ -177,7 +177,7 @@ parsePreamble :: Parser [PreambleLine]
 parsePreamble = endBy (try parseSymbolDef
                    <|> try parseMatrix
                    <|> parseBlankLine
-                   ) (char '\n')
+                   ) endOfLine
 
 parseInput :: Parser ([PreambleLine], Expr)
 parseInput = do lns <- parsePreamble

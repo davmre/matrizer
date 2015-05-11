@@ -6,6 +6,26 @@ import MTypes
 -----------------------------------------------------
 -- Code generation for numpy arrays
 
+-- atomic_ops=[MTernaryProduct, MLinSolve, MCholSolve, MTriSolve, MColProduct, MProduct, MInverse, MTranspose, MTrace, MDet, MDiagVM, MDiagMV, MEntrySum (MElementWise MLog), (MElementWise MExp)]
+
+-- #precendence = [(MElementWise MReciprocal), MScalarProduct, MNegate,  MSum]
+
+-- parenWrap parentOp MSum s = 
+--           | parentOp `elem` atomic_ops = False
+--           | (parentOp == MSum) = False
+--           | (parentOp == (MElementWise MReciprocal) = True
+--           | (parentOp == MScalarProduct) = True
+--           | (parentOp == MNegate) = True
+-- parenWrap parentOp childOp s = 
+--           | parentOp `elem` atomic_ops = False
+--           | childOp `elem` atomic_ops = False
+--           | otherwise = False
+              
+
+--               if atomicParent then False
+--               else if atomicChild then False
+          
+
 generateNumpy :: Expr -> String
 generateNumpy (Leaf a) = a
 generateNumpy (IdentityLeaf n) = "np.eye(" ++ (show n) ++ ")"
