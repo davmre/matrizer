@@ -15,6 +15,10 @@ output are optimal or even correct. It's best to think of the results
 as a source of inspiration rather than something to be blindly
 trusted.
 
+Interactive Version
+-----
+Matrizer is available over the web at [matrizer.org](http://www.matrizer.org). This is the easiest way to use it. Unfortunately there's currently no documentation. The rest of this file describes building the local command-line version, and is mostly of interest to potential developers. 
+
 Setup
 -----
 
