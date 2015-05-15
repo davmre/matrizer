@@ -870,9 +870,12 @@ swapTransposeInverse _ (Branch1 MTranspose (Branch1 MInverse t)) =
 swapTransposeInverse _ _ = Nothing
 
 -- (A+UCV)^-1 -> A^-1 - A^-1 U (C^-1 + V A^-1 U)^-1 V A^-1
+-- (A+C)^-1 -> A^-1 - A^-1 (C^-1 + A^-1)^-1 A^-1
 matrixInvLemmaLeft :: Rule
 matrixInvLemmaLeft _ (Branch1 MInverse (Branch2 MSum a (Branch3 MTernaryProduct u c v))) =
   Just (Branch2 MSum (Branch1 MInverse a) (Branch1 (MElementWise MNegate) (Branch3 MTernaryProduct (Branch2 MProduct (Branch1 MInverse a) u ) (Branch1 MInverse ( Branch2 MSum (Branch1 MInverse c) (Branch3 MTernaryProduct v (Branch1 MInverse a) u) ) ) (Branch2 MProduct v (Branch1 MInverse a)) )))
+matrixInvLemmaLeft _ (Branch1 MInverse (Branch2 MSum a c)) =
+  Just (Branch2 MSum (Branch1 MInverse a) (Branch1 (MElementWise MNegate) (Branch3 MTernaryProduct (Branch1 MInverse a) (Branch1 MInverse ( Branch2 MSum (Branch1 MInverse c) (Branch1 MInverse a) ) ) (Branch1 MInverse a))))
 matrixInvLemmaLeft _ _ = Nothing
 
 --  A^-1 - A^-1 U (C^-1 + V A^-1 U)^-1 V A^-1 -> (A+UCV)^-1
