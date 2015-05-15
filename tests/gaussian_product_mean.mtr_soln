@@ -1,0 +1,10 @@
+A: n x n posdef
+B: n x n posdef
+a: n x 1
+b: n x 1
+
+n ~ 100
+
+tmp invA = A^-1;
+tmp invB = B^-1;
+c = chol(invA+invB) \cholsolve (invA * a + invB * b)
