@@ -3,5 +3,5 @@ A: n x n ltri
 n ~ 100
 
 # construct B to have positive determinant
-tmp B = A + I + -(diag(diag(A)));
+tmp B = A + I - diag(diag(A));
 r = log(det(B))

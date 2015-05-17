@@ -374,6 +374,7 @@ binopSumRules = [commonFactorLeft
                 , matrixInvLemmaRight
                 , assocSum
                 , commuteSum
+                , dropZeros 
                 ]
 
 binopProductRules :: Rules
@@ -391,6 +392,7 @@ binopProductRules = [assocMult
                     , assocScalarProduct
                     , collectTerms
                     , multDiag
+                    , diffToScalar
                     ]
 
 ternProductRules :: Rules
@@ -518,16 +520,22 @@ distributeMult _ _ = Nothing
 
 literalScalars :: Rule
 literalScalars _ (Branch2 MSum (LiteralScalar x) (LiteralScalar y)) = Just (LiteralScalar (x+y))
+literalScalars _ (Branch2 MDiff (LiteralScalar x) (LiteralScalar y)) = Just (LiteralScalar (x-y))
 literalScalars _ (Branch2 MProduct (LiteralScalar x) (LiteralScalar y)) = Just (LiteralScalar (x*y))
 literalScalars _ (Branch2 MScalarProduct (LiteralScalar x) (LiteralScalar y)) = Just (LiteralScalar (x*y))
-literalScalars _ (Branch1 (MElementWise MNegate) (LiteralScalar x)) = Just (LiteralScalar (-x))
 literalScalars _ (Branch1 (MElementWise MExp) (LiteralScalar x)) = Just (LiteralScalar (exp x))
 literalScalars _ (Branch1 (MElementWise MLog) (LiteralScalar x)) = Just (LiteralScalar (log x))
 literalScalars _ (Branch1 (MElementWise MReciprocal) (LiteralScalar x)) = Just (LiteralScalar (1.0/x))
 literalScalars _ (Branch1 MInverse (LiteralScalar x)) = Just (LiteralScalar (1.0/x))
-literalScalars _ (Branch2 MScalarProduct (LiteralScalar (-1.0)) a) = Just (Branch1 (MElementWise MNegate) a)
 literalScalars _ (Branch2 MScalarProduct (LiteralScalar (1.0)) a) = Just a
 literalScalars _ _ = Nothing
+
+diffToScalar :: Rule
+diffToScalar _ (Branch2 MDiff a b) = Just (Branch2 MSum a (Branch2 MScalarProduct (LiteralScalar (-1)) b))
+diffToScalar _ (Branch2 MSum a (Branch2 MScalarProduct (LiteralScalar (-1)) b)) = Just (Branch2 MDiff a b)
+diffToScalar _ (Branch2 MSum a (Branch2 MScalarProduct (LiteralScalar c) b)) = Just (Branch2 MDiff a (Branch2 MScalarProduct (LiteralScalar (-c)) b))
+diffToScalar _ (Branch2 MDiff a (Branch2 MScalarProduct (LiteralScalar c) b)) = Just (Branch2 MSum a (Branch2 MScalarProduct (LiteralScalar (-c)) b))
+diffToScalar _ _ = Nothing
 
 commuteScalarProduct :: Rule
 commuteScalarProduct _ (Branch2 MProduct (Branch2 MScalarProduct a b) c) = Just (Branch2 MProduct b (Branch2 MScalarProduct a c))
@@ -546,7 +554,20 @@ collectTerms _ (Branch2 MSum (Branch2 MScalarProduct (LiteralScalar n) a) b)
 collectTerms _ (Branch2 MSum a b) 
              | (a==b) = Just (Branch2 MScalarProduct (LiteralScalar 2) a) 
              | otherwise = Nothing
+collectTerms _ (Branch2 MDiff a b) 
+             | (a==b) = Just (Branch2 MScalarProduct (LiteralScalar 0) a) 
+             | otherwise = Nothing
 collectTerms _ _ = Nothing
+
+dropZeros :: Rule
+dropZeros tbl (Branch2 MScalarProduct (LiteralScalar 0) a) = 
+          let Right (Matrix r1 c1 _ ) = treeMatrix a tbl in
+              Just (ZeroLeaf r1 c1)
+dropZeros _ (Branch2 MSum a (ZeroLeaf n m)) = Just a
+dropZeros _ (Branch2 MSum (ZeroLeaf n m) b) = Just b
+dropZeros _ (Branch2 MDiff a (ZeroLeaf n m)) = Just a
+dropZeros _ (Branch2 MDiff (ZeroLeaf n m) b) = Just (Branch2 MScalarProduct (LiteralScalar (-1)) b)
+dropZeros _ _ = Nothing
 
 -- tr(AB) = tr(BA)
 commuteTrace :: Rule
@@ -673,7 +694,6 @@ invDiag _ _ = Nothing
 elementUnOps :: Rule
 elementUnOps _ (Branch1 (MElementWise MExp) (Branch1 (MElementWise MLog) a)) = Just a
 elementUnOps _ (Branch1 (MElementWise MLog) (Branch1 (MElementWise MExp) a)) = Just a
-elementUnOps _ (Branch1 (MElementWise MNegate) (Branch1 (MElementWise MNegate) a)) = Just a
 elementUnOps _ (Branch1 (MElementWise MLog) (Branch2 MHadamardProduct a b)) = Just (Branch2 MSum (Branch1 (MElementWise MLog) a) (Branch1 (MElementWise MLog) b))
 elementUnOps tbl (Branch1 (MElementWise MLog) (Branch2 MScalarProduct a b)) = 
                let Right (Matrix r1 c1 _) = treeMatrix b tbl in
@@ -683,8 +703,8 @@ elementUnOps tbl (Branch1 (MElementWise MLog) (Branch2 MScalarProduct a b)) =
 elementUnOps _ (Branch2 MSum (Branch1 (MElementWise MLog) a) (Branch1 (MElementWise MLog) b)) = Just (Branch1 (MElementWise MLog) (Branch2 MHadamardProduct a b))
 elementUnOps _ (Branch1 (MElementWise MExp) (Branch2 MSum a b)) = Just (Branch2 MHadamardProduct (Branch1 (MElementWise MExp) a) (Branch1 (MElementWise MExp) b))
 elementUnOps _ (Branch2 MHadamardProduct (Branch1 (MElementWise MExp) a) (Branch1 (MElementWise MExp) b)) = Just (Branch1 (MElementWise MExp) (Branch2 MSum a b))
-elementUnOps _ (Branch1 (MElementWise MExp) (Branch1 (MElementWise MNegate) a)) = Just (Branch1 (MElementWise MReciprocal) (Branch1 (MElementWise MExp) a))
-elementUnOps _ (Branch1 (MElementWise MReciprocal) (Branch1 (MElementWise MExp) a)) = Just (Branch1 (MElementWise MExp) (Branch1 (MElementWise MNegate) a))
+elementUnOps _ (Branch1 (MElementWise MExp) (Branch2 MScalarProduct (LiteralScalar c) a)) = Just (Branch1 (MElementWise MReciprocal) (Branch1 (MElementWise MExp) (Branch2 MScalarProduct (LiteralScalar (-c)) a)))
+elementUnOps _ (Branch1 (MElementWise MReciprocal) (Branch1 (MElementWise MExp) (Branch2 MScalarProduct (LiteralScalar c) a))) = Just (Branch1 (MElementWise MExp) (Branch2 MScalarProduct (LiteralScalar (-c)) a))
 elementUnOps _ _ = Nothing
 
 -- tr(AB') = sum(A*B)
@@ -873,14 +893,14 @@ swapTransposeInverse _ _ = Nothing
 -- (A+C)^-1 -> A^-1 - A^-1 (C^-1 + A^-1)^-1 A^-1
 matrixInvLemmaLeft :: Rule
 matrixInvLemmaLeft _ (Branch1 MInverse (Branch2 MSum a (Branch3 MTernaryProduct u c v))) =
-  Just (Branch2 MSum (Branch1 MInverse a) (Branch1 (MElementWise MNegate) (Branch3 MTernaryProduct (Branch2 MProduct (Branch1 MInverse a) u ) (Branch1 MInverse ( Branch2 MSum (Branch1 MInverse c) (Branch3 MTernaryProduct v (Branch1 MInverse a) u) ) ) (Branch2 MProduct v (Branch1 MInverse a)) )))
+  Just (Branch2 MDiff (Branch1 MInverse a) (Branch3 MTernaryProduct (Branch2 MProduct (Branch1 MInverse a) u ) (Branch1 MInverse ( Branch2 MSum (Branch1 MInverse c) (Branch3 MTernaryProduct v (Branch1 MInverse a) u) ) ) (Branch2 MProduct v (Branch1 MInverse a)) ))
 matrixInvLemmaLeft _ (Branch1 MInverse (Branch2 MSum a c)) =
-  Just (Branch2 MSum (Branch1 MInverse a) (Branch1 (MElementWise MNegate) (Branch3 MTernaryProduct (Branch1 MInverse a) (Branch1 MInverse ( Branch2 MSum (Branch1 MInverse c) (Branch1 MInverse a) ) ) (Branch1 MInverse a))))
+  Just (Branch2 MDiff (Branch1 MInverse a) (Branch3 MTernaryProduct (Branch1 MInverse a) (Branch1 MInverse ( Branch2 MSum (Branch1 MInverse c) (Branch1 MInverse a) ) ) (Branch1 MInverse a)))
 matrixInvLemmaLeft _ _ = Nothing
 
 --  A^-1 - A^-1 U (C^-1 + V A^-1 U)^-1 V A^-1 -> (A+UCV)^-1
 matrixInvLemmaRight :: Rule
-matrixInvLemmaRight tbl (Branch2 MSum (Branch1 MInverse a) (Branch1 (MElementWise MNegate) (Branch3 MTernaryProduct (Branch2 MProduct (Branch1 MInverse b) c ) (Branch1 MInverse ( Branch2 MSum (Branch1 MInverse d) (Branch3 MTernaryProduct e (Branch1 MInverse f) g) )) (Branch2 MProduct h (Branch1 MInverse i)) ))) =
+matrixInvLemmaRight tbl (Branch2 MDiff (Branch1 MInverse a) (Branch3 MTernaryProduct (Branch2 MProduct (Branch1 MInverse b) c ) (Branch1 MInverse ( Branch2 MSum (Branch1 MInverse d) (Branch3 MTernaryProduct e (Branch1 MInverse f) g) )) (Branch2 MProduct h (Branch1 MInverse i)) )) =
                     if (a == b && a == f && a == i)&& (c == g)&& (e == h) then
                     -- MIL A: (A, B, F, I)
                     -- MIL U: C, G
@@ -888,7 +908,7 @@ matrixInvLemmaRight tbl (Branch2 MSum (Branch1 MInverse a) (Branch1 (MElementWis
                     -- MIL V: E, H
                     Just (Branch1 MInverse (Branch2 MSum a (Branch3 MTernaryProduct c d e)))    
                     else Nothing
-matrixInvLemmaRight tbl z@(Branch2 MSum ainv (Branch1 (MElementWise MNegate) (Branch3 MTernaryProduct (Branch2 MProduct ainv2 u ) (Branch1 MInverse ( Branch2 MSum cinv (Branch3 MTernaryProduct v ainv3 u2) ) ) (Branch2 MProduct v2 ainv4) ) ) ) =
+matrixInvLemmaRight tbl z@(Branch2 MDiff ainv (Branch3 MTernaryProduct (Branch2 MProduct ainv2 u ) (Branch1 MInverse ( Branch2 MSum cinv (Branch3 MTernaryProduct v ainv3 u2) ) ) (Branch2 MProduct v2 ainv4) ) )  =
    if (ainv == ainv2 && ainv == ainv3 && ainv == ainv4)&& (u == u2)&& (v == v2)
    then Just (Branch1 MInverse (Branch2 MSum (Branch1 MInverse ainv) (Branch3 MTernaryProduct u (Branch1 MInverse cinv) v)))
   else Nothing

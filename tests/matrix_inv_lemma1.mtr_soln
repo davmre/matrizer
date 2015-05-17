@@ -1,2 +1,2 @@
 tmp AU = A * U;
-D = A + -(AU * (C^-1 + V * AU)^-1 * (V * A))
+D = A - (AU * (C^-1 + V * AU)^-1 * (V * A))

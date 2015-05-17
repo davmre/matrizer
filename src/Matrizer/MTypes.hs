@@ -12,6 +12,7 @@ type VarName = String
 
 data Expr = Leaf VarName
            | IdentityLeaf Int
+           | ZeroLeaf Int Int
            | LiteralScalar Float
            | Branch1 UnOp Expr
            | Branch2 BinOp Expr Expr
@@ -22,6 +23,7 @@ data Expr = Leaf VarName
 data TernOp = MTernaryProduct deriving (Eq, Ord)
 data BinOp = MProduct
            | MSum
+           | MDiff
            | MLinSolve
            | MCholSolve
            | MTriSolve
@@ -44,7 +46,6 @@ data UnOp = MInverse
 data ScalarOp = MLog
               | MExp -- TODO: support matrix exponentials
               | MReciprocal
-              | MNegate
               deriving (Eq, Ord, Enum)
 
 -- AST pretty printing
@@ -53,12 +54,13 @@ instance Show TernOp where
     show _ = "***"
 
 instance Show BinOp where
-    show MProduct = "*"
+    show MProduct = "mmul"
     show MScalarProduct = "*"
     show MHadamardProduct = ".*"
     show MColProduct = "*c" -- don't really expect people to use this input syntax 
                             -- except for internal test cases
     show MSum = "+"
+    show MDiff = "-"
     show MLinSolve = "\\"
     show MTriSolve = "\\tri"
     show MCholSolve = "cholSolve"
@@ -78,11 +80,11 @@ instance Show ScalarOp where
     show MLog = "log"
     show MExp = "exp"
     show MReciprocal = "recip"
-    show MNegate = "neg"
 
 instance Show Expr where
     show (Leaf a) = a
     show (IdentityLeaf _) = "I"
+    show (ZeroLeaf _ _) = "0"
     show (LiteralScalar x) = show x
     show (Branch1 op c) = "(" ++ show op ++ " " ++ show c ++ ")"
     show (Branch2 op a b) = "(" ++ show op ++ " " ++ show a ++ " "

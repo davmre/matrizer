@@ -45,8 +45,7 @@ TokenParser{ parens = m_parens
 ----------------------------------------------------------------
 
 table :: OperatorTable String u Identity Expr
-table = [ [Prefix (m_reservedOp "-" >> return (Branch1 (MElementWise MNegate)))] -- note: this will parse A-B as A * (-B)
-        , [Prefix (m_reservedOp "tr" >> return (Branch1 MTrace))] 
+table = [ [Prefix (m_reservedOp "tr" >> return (Branch1 MTrace))] 
         , [Prefix (m_reservedOp "det" >> return (Branch1 MDet))] 
         , [Prefix (m_reservedOp "sum" >> return (Branch1 MEntrySum))] 
         , [Prefix (m_reservedOp "diag" >> return (Branch1 MDiagMV))] -- guess which diag is meant and fix in preprocessing analysis 
@@ -62,13 +61,16 @@ table = [ [Prefix (m_reservedOp "-" >> return (Branch1 (MElementWise MNegate)))]
         , [Infix (m_reservedOp "\\cholsolve" >> return (Branch2 MCholSolve)) AssocLeft]
         , [Infix (m_reservedOp "\\" >> return (Branch2 MLinSolve)) AssocLeft]
         , [Infix (m_reservedOp "+" >> return (Branch2 MSum)) AssocLeft]
+        , [Infix (m_reservedOp "-" >> return (Branch2 MDiff)) AssocLeft]
         ]
 
 
 number = many1 digit
+minus = (:) <$> char '-' <*> number
+minteger = minus <|> number
 
 mfloat :: Parser Float
-mfloat = fmap rd $ (++) <$> number <*> decimal
+mfloat = fmap rd $ (++) <$> minteger <*> decimal
          where rd      = read :: String -> Float
                decimal = option "" $ (:) <$> char '.' <*> number
 
@@ -197,7 +199,12 @@ subSymbolDefMatrix :: Map.Map Char Int -> (VarName, MatrixSym) -> ThrowsError (V
 subSymbolDefMatrix defs (c, (MatrixSym sym1 sym2 propList)) =
     do n1 <- subSymbolDef sym1 defs
        n2 <- subSymbolDef sym2 defs
-       return (c, Matrix n1 n2 propList )
+       return (c, Matrix n1 n2 (inferProps propList) )
+
+inferProps :: [MProperty] -> [MProperty]
+inferProps propList = if (PosDef `elem` propList) && (not $ Symmetric `elem` propList)
+                      then Symmetric:propList
+                      else propList
 
 -- TODO: Gaping holes in the pattern match of this function
 subSymbolDef :: String -> Map.Map Char Int -> ThrowsError Int

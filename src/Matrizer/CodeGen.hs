@@ -29,6 +29,7 @@ import Matrizer.MTypes
 generateNumpy :: Expr -> String
 generateNumpy (Leaf a) = a
 generateNumpy (IdentityLeaf n) = "np.eye(" ++ (show n) ++ ")"
+generateNumpy (ZeroLeaf n m) = "np.zeros((" ++ (show n) ++ ", " ++ (show m) ++ "))"
 generateNumpy (LiteralScalar x) = let ix = round x
                                       isInt = x == (fromIntegral ix) in
                                       if isInt then show ix else show x
@@ -47,12 +48,11 @@ generateNumpy (Branch2 MScalarProduct t1 t2) = "( " ++ (generateNumpy t1) ++ " *
                                                   ++ (generateNumpy t2)  ++ ")" 
 generateNumpy (Branch2 MColProduct t1 t2) = "( " ++ (generateNumpy t1) ++ ".flatten() * "
                                                   ++ (generateNumpy t2)  ++ ")" 
-generateNumpy (Branch2 MSum t1 (Branch1 (MElementWise MNegate) t2)) = "(" ++ (generateNumpy t1) ++ " - " ++ (generateNumpy t2) ++ ")"
+generateNumpy (Branch2 MDiff t1 t2) = "(" ++ (generateNumpy t1) ++ " - " ++ (generateNumpy t2) ++ ")"
 generateNumpy (Branch2 MSum t1 t2) = "(" ++ (generateNumpy t1) ++ " + " ++ (generateNumpy t2) ++ ")"
 generateNumpy (Branch2 MHadamardProduct t1 t2) = (generateNumpy t1) ++ " * " ++ (generateNumpy t2)
 generateNumpy (Branch1 MInverse t) = "np.linalg.inv(" ++ (generateNumpy t) ++ ")"
 generateNumpy (Branch1 MTranspose t) = (generateNumpy t) ++ ".T" -- caution: might we need parentheses here?
-generateNumpy (Branch1 (MElementWise MNegate) t) = "-" ++ (generateNumpy t)
 generateNumpy (Branch1 (MElementWise MExp) t) = "np.exp(" ++ (generateNumpy t) ++ ")"
 generateNumpy (Branch1 (MElementWise MLog) t) = "np.log(" ++ (generateNumpy t) ++ ")"
 generateNumpy (Branch1 (MElementWise MReciprocal) t) = "1.0/(" ++ (generateNumpy t) ++ ")"
@@ -96,6 +96,7 @@ generateMatrixNumpy (v, (Matrix r c props)) =
 generateMatlab :: Expr -> String
 generateMatlab (Leaf a) = a
 generateMatlab (IdentityLeaf n) = "eye(" ++ (show n) ++ ")"
+generateMatlab (ZeroLeaf n m) = "zeros(" ++ (show n) ++ ", " ++ (show m) ++ ")"
 generateMatlab (LiteralScalar x) = let ix = round x
                                        isInt = x == (fromIntegral ix) in
                                        if isInt then show ix else show x
@@ -115,12 +116,11 @@ generateMatlab (Branch2 MScalarProduct t1 t2) = "(" ++ (generateMatlab t1) ++
                                                 " * " ++ (generateMatlab t2)  ++ ")"
 generateMatlab (Branch2 MColProduct t1 t2) = "bsxfun(@times, " ++ (generateMatlab t1) ++
                                                 ", " ++ (generateMatlab t2)  ++ ")"
-generateMatlab (Branch2 MSum t1 (Branch1 (MElementWise MNegate) t2)) = "(" ++ (generateMatlab t1) ++ " - " ++ (generateMatlab t2) ++ ")"
+generateMatlab (Branch2 MDiff t1 t2) = "(" ++ (generateMatlab t1) ++ " - " ++ (generateMatlab t2) ++ ")"
 generateMatlab (Branch2 MSum t1 t2) = "(" ++ (generateMatlab t1) ++ " + " ++ (generateMatlab t2) ++ ")"
 generateMatlab (Branch2 MHadamardProduct t1 t2) = "(" ++ (generateMatlab t1) ++ " .* " ++ (generateMatlab t2) ++ ")"
 generateMatlab (Branch1 MInverse t) = "inv(" ++ (generateMatlab t) ++ ")"
 generateMatlab (Branch1 MTranspose t) = (generateMatlab t) ++ "'" -- caution: might need parentheses here?
-generateMatlab (Branch1 (MElementWise MNegate) t) = "-" ++ (generateMatlab t)
 generateMatlab (Branch1 (MElementWise MExp) t) = "exp(" ++ (generateMatlab t) ++ ")"
 generateMatlab (Branch1 (MElementWise MLog) t) = "log(" ++ (generateMatlab t) ++ ")"
 generateMatlab (Branch1 (MElementWise MReciprocal) t) = "1.0./(" ++ (generateMatlab t) ++ ")"

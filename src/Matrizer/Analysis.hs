@@ -30,6 +30,7 @@ scalarProps = [Symmetric, Diagonal, LowerTriangular]
 exprType :: Bool -> Expr -> SymbolTable -> ThrowsError Matrix
 exprType strict (Leaf a) tbl = maybe (throwError $ UnboundName a) return (Map.lookup a tbl)
 exprType strict (IdentityLeaf n) tbl = return $ Matrix n n [Symmetric, PosDef, Diagonal, LowerTriangular]
+exprType strict (ZeroLeaf n m) tbl = return $ Matrix n m []
 exprType strict (LiteralScalar x) tbl = return $ Matrix 1 1 scalarProps
 exprType strict (Branch3 MTernaryProduct t1 t2 t3) tbl = updateMatrixTernaryOp strict ternProductSizeCheck ternProductNewSize MTernaryProduct t1 t2 t3 tbl
 exprType strict (Branch2 MLinSolve t1 t2) tbl = updateMatrixBinaryOp strict linsolveSizeCheck truePropCheck linsolveNewSize MLinSolve t1 t2 tbl
@@ -40,6 +41,7 @@ exprType strict (Branch2 MScalarProduct t1 t2) tbl = updateMatrixBinaryOp strict
 exprType strict (Branch2 MColProduct t1 t2) tbl = updateMatrixBinaryOp strict colprodSizeCheck truePropCheck scalarprodNewSize MColProduct t1 t2 tbl
 exprType strict (Branch2 MHadamardProduct t1 t2) tbl = updateMatrixBinaryOp strict sumSizeCheck truePropCheck sumNewSize MHadamardProduct t1 t2 tbl
 exprType strict (Branch2 MSum t1 t2) tbl = updateMatrixBinaryOp strict sumSizeCheck truePropCheck sumNewSize MSum t1 t2 tbl
+exprType strict (Branch2 MDiff t1 t2) tbl = updateMatrixBinaryOp strict sumSizeCheck truePropCheck sumNewSize MDiff t1 t2 tbl
 exprType strict (Branch1 MInverse t) tbl = updateMatrixUnaryOp strict squareCheck (const True) sameSize MInverse t tbl
 exprType strict (Branch1 MTranspose t) tbl = updateMatrixUnaryOp strict trueCheck (const True) transSize MTranspose t tbl
 exprType strict (Branch1 MChol t) tbl = updateMatrixUnaryOp strict squareCheck (elem PosDef) sameSize MChol t tbl
@@ -64,11 +66,11 @@ idshape2 :: BinOp -> Bool -> Int -> Int -> Int
 idshape2 MProduct idOnRight n m = if idOnRight then m else n
 idshape2 MColProduct idOnRight n m = if idOnRight then n else n -- "else" clause should never be hit since row/col products always have a vector on the left
 idshape2 MSum _ n _ = n -- the n != m case will be caught in a typecheck later
+idshape2 MDiff _ n _ = n -- the n != m case will be caught in a typecheck later
 idshape2 MHadamardProduct _ n _ = n -- the n != m case will be caught in a typecheck later
 idshape2 MLinSolve idOnRight n m = if idOnRight then n else m
 idshape2 MTriSolve idOnRight n m = if idOnRight then n else m
 idshape2 MCholSolve idOnRight n m = if idOnRight then n else m
-
 
 
 preprocess :: Expr -> SymbolTable -> ThrowsError Expr
@@ -91,6 +93,10 @@ preprocess (Branch2 op (Leaf "I") b) tbl =
                 do newB <- preprocess b tbl
                    (Matrix n m _) <- typeCheck newB tbl
                    preprocess (Branch2 op (IdentityLeaf (idshape2 op False n m)) newB) tbl
+--preprocess (Branch2 MDiff a b) tbl = 
+--                do newA <- preprocess a tbl
+--                   newB <- preprocess b tbl
+--                   return $ Branch2 MSum newA (Branch2 MScalarProduct (LiteralScalar (-1.0)) newB)
 preprocess (Branch2 MProduct a b) tbl = do newA <- preprocess a tbl
                                            newB <- preprocess b tbl
                                            (Matrix n1 m1 _) <- treeMatrix newA tbl
@@ -231,6 +237,7 @@ updateBinaryProps MProduct props1 props2 t1 t2 = nub $ (updateBinaryClosedProps 
 updateBinaryProps MScalarProduct props1 props2 t1 t2 = intersect [Symmetric, Diagonal, LowerTriangular] props2 
 updateBinaryProps MColProduct props1 props2 t1 t2 = intersect [Diagonal, LowerTriangular] props2 
 updateBinaryProps MSum props1 props2 _ _ = updateBinaryClosedProps [Diagonal, Symmetric, PosDef, LowerTriangular] props1 props2
+updateBinaryProps MDiff props1 props2 _ _ = updateBinaryClosedProps [Diagonal, Symmetric, LowerTriangular] props1 props2
 updateBinaryProps MHadamardProduct props1 props2 _ _ = updateBinaryClosedProps [Diagonal, Symmetric, PosDef, LowerTriangular] props1 props2 -- PosDef is preserved by the Schur product theorem
 updateBinaryProps MLinSolve props1 props2 _ _ = updateBinaryClosedProps [] props1 props2
 updateBinaryProps MTriSolve props1 props2 _ _ = updateBinaryClosedProps [] props1 props2
@@ -289,6 +296,7 @@ transposecost_CONST = 1
 treeFLOPs :: Expr -> SymbolTable -> ThrowsError Int
 treeFLOPs (Leaf _) _ = return 0
 treeFLOPs (IdentityLeaf n) _ = return $ n * n
+treeFLOPs (ZeroLeaf n m) _ = return $ n * m + 1
 treeFLOPs (LiteralScalar n) _ = return 0
 treeFLOPs (Branch3 MTernaryProduct t1 t2 t3) tbl =
         treeFLOPs (Branch2 MProduct (Branch2 MProduct t1 t2) t3) tbl
@@ -331,7 +339,7 @@ treeFLOPs (Branch2 MCholSolve t1 t2) tbl =
            -- (i.e., two TriSolves)
            return $ c2 * (r1 * r1 + r1) + flops1 + flops2
 
-treeFLOPs (Branch2 MSum t1 (Branch1 (MElementWise MNegate) t2)) tbl =
+treeFLOPs (Branch2 MDiff t1  t2) tbl =
         do (Matrix r1 c1 _) <- treeMatrix t1 tbl
            (Matrix _ _ _) <- treeMatrix t2 tbl
            flops1 <- treeFLOPs t1 tbl
