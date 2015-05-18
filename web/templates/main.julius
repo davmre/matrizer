@@ -1,0 +1,41 @@
+$(function(){
+    $("#matrizerPrgm").submit(function(event){
+        $("#error").hide();
+        $("#parseresult").hide();
+        $("#optimizeresult").hide();
+	$("#loadingparse").show();
+	$("#loadingopt").show();
+        $.ajax({
+            type: "POST",
+            url: "@{ParsePrgmR}",
+            data: $("#matrizerPrgm").serialize(),
+            success: function(data) {
+	        $("#error").hide();
+	        $("#loadingparse").hide();
+                $("#symtable").html(data.symboltable);
+                $("#naiveast").html(data.prgm);
+                $("#nflops").text(''+data.flops);
+	        $("#parseresult").show();
+            },
+            // this only refers to the data type of the *returned* data
+            dataType: "json"
+        });
+        $.ajax({
+            type: "POST",
+            url: "@{OptimizeR}",
+            data: $("#matrizerPrgm").serialize(),
+            success: function(data) {
+	        $("#error").hide();
+	        $("#loadingopt").hide();
+                $("#optast").html(data.prgm);
+                $("#numpy").html(data.python);
+                $("#matlab").html(data.matlab);
+                $("#oflops").text(''+data.flops);
+	        $("#optimizeresult").show();
+            },
+            // this only refers to the data type of the *returned* data
+            dataType: "json"
+        });
+        event.preventDefault();
+    });
+});

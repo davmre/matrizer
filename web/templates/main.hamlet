@@ -20,10 +20,31 @@
       <p><b>TODO:</b> write some documentation.
     <td width=10%>
     <td width=45% align=right valign=top>
-      <form method=post action=@{OptimizeR}>
+      <form #matrizerPrgm>
         <textarea cols=80 rows=20 name=program>
         <input type=hidden name=iters value=5>
         <input type=hidden name=beamSize value=20>
         <input type=hidden name=nRewrites value=4>
-        <input type=submit value="Optimize">
+        <input type=submit value=Optimize>
 <p>
+<div #error>
+<div #loadingparse><font color=red>Loading parse...</font>
+<div #parseresult>
+  <p>Parsed as symbol table:
+  <pre #symtable>
+  <p>Naive AST:
+  <pre #naiveast>
+  <p>Naive computation requires 
+     <span #nflops>
+     \FLOPs. 
+<div #loadingopt><font color=red>Loading optimized expression...</font>
+<div #optimizeresult>
+  <p>Optimized result requires 
+     <span #oflops>
+     \FLOPs.
+  <p>Optimized AST:
+  <pre #optast>
+  <p>Python/numpy code:
+  <pre #numpy>
+  <p>MATLAB code:
+  <pre #matlab>
