@@ -7,6 +7,5 @@ n ~ 100
 
 tmp tmpA = A^-1;
 tmp tmpB = B^-1;
-C = (tmpA + tmpB)^-1;
-c = C * (tmpA * a + tmpB * b)
+c = chol(tmpA + tmpB) \cholsolve (tmpA * a + tmpB * b)
 

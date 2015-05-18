@@ -1,5 +1,5 @@
 
-<table border=0>
+<table .global>
   <tr>
     <td colspan=2>
       <h1> Matrizer
@@ -7,24 +7,23 @@
     <td style="width: 35%; padding-right: 36px" valign=top>
         <p>Matrizer is an optimizing compiler for matrix expressions. Given approximate sizes of the matrices involved, it searches for mathematically equivalent expressions requiring fewer FLOPs to compute. The result is output as Python/numpy or MATLAB code.
        <p><i>Beware:</i> this is still highly unpolished alpha-level software. Many features are missing, and there is no guarantee that the expressions output are optimal or even correct. It's best to think of the results as a source of inspiration rather than something to be blindly trusted.
-       <p>
-         <b>Try an example:
-         <form #selectExample>
-           <select name="examples" selected="custom" #examples>
-              <option value="custom" >Custom
-              $forall ex <- examples
-                  <option value=#{sname ex}>#{lname ex}
-           $forall ex <- examples
-                <div .hiddenExample ##{sname ex}>#{txt ex}
        <p><b>TODO:</b> write some documentation.
     <td style="width: 64%;" valign=top>
       <form #matrizerPrgm>
         <textarea rows=20 name=program #prgmtext>
         <input type=hidden name=iters value=5>
         <input type=hidden name=beamSize value=20>
-        <input type=hidden name=nRewrites value=4>
-        <div align=right>
+        <input type=hidden name=nRewrites value=4>        
+        <b>Try an example:
+        <select name="examples" selected="custom" #examples>
+           <option value="custom" >Custom
+           $forall ex <- examples
+               <option value=#{sname ex}>#{lname ex}
+        $forall ex <- examples
+             <div .hiddenExample ##{sname ex}>#{txt ex}
+        <span style="float: right">
           <input type=submit value=Optimize>
+      <p>
       <div #error>
       <div #loadingparse><font color=red>Parsing expression...</font>
       <div #parseresult>

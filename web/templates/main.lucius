@@ -29,6 +29,10 @@ textarea {
 }
 
 table {
+  border: 0;
+}
+
+.global {
     table-layout: fixed;
     width: 90%;
     margin-left:auto; 
