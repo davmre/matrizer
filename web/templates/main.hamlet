@@ -25,7 +25,7 @@
           <input type=submit value=Optimize>
       <p>
       <div #error>
-      <div #loadingparse><font color=red>Parsing expression...</font>
+      <div #loadingparse><b><font color=red>Parsing expression...</font></b>
       <div #parseresult>
         <p>Parsed as symbol table:
         <pre #symtable>
@@ -34,7 +34,8 @@
         <p>Naive computation requires 
            <span #nflops>
            \FLOPs. 
-      <div #loadingopt><font color=red>Optimizing, please wait...</font>
+      <div #loadingopt><b><font color=red>Optimizing, please wait...</font></b>
+      <div #opterror>
       <div #optimizeresult>
         <p>Optimized result requires 
            <span #oflops>

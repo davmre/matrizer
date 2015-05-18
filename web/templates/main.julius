@@ -1,6 +1,7 @@
 $(function(){
     $("#matrizerPrgm").submit(function(event){
         $("#error").hide();
+        $("#opterror").hide();
         $("#parseresult").hide();
         $("#optimizeresult").hide();
 	$("#loadingparse").show();
@@ -39,12 +40,13 @@ $(function(){
 	        $("#optimizeresult").show();
             },
             error: function(xhr, status, error) {
-                errdiv = $("#error");
-                if( errdiv.css("display") == 'none' ){
-                  data = $.parseJSON(xhr.responseText)
-                  errdiv.html("<b><font color=red>Optimizer error:</font></b> <tt>" + data.error + "</tt>");
-                  errdiv.show();
+                opterrdiv = $("#opterror");
+                data = $.parseJSON(xhr.responseText)
+                opterrdiv.html("<b><font color=red>Optimizer error:</font></b> <tt>" + data.error + "</tt>");
+                if( opterrdiv.css("display") == 'none' ){
+                  opterrdiv.show();
                 }
+                $("#loadingparse").hide();
             },
             // this only refers to the data type of the *returned* data
             dataType: "json"

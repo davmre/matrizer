@@ -84,6 +84,7 @@ library
                  , containers
                  , vector
                  , time
+                 , async
                  , matrizer
 
 executable         matrizerWeb
