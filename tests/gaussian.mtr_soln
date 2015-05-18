@@ -1,10 +1,10 @@
 K: n x n posdef
 y: n x 1
 pi: 1 x 1
-n: 1 x 1
+d: 1 x 1
 
 n ~ 100
 
 tmp L = chol(K);
 tmp z = L\y;
-r = 0.5*(z' z + 1.8378762217451237*n) + sum(log(diag(L)))
+r = 0.5*(z' z + 1.8378762217451237*d) + sum(log(diag(L)))

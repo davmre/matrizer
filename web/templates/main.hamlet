@@ -1,50 +1,48 @@
-<h1> Matrizer
+
 <table border=0>
   <tr>
-    <td width=45% align=left valign=top>
+    <td colspan=2>
+      <h1> Matrizer
+  <tr>
+    <td style="width: 35%; padding-right: 36px" valign=top>
         <p>Matrizer is an optimizing compiler for matrix expressions. Given approximate sizes of the matrices involved, it searches for mathematically equivalent expressions requiring fewer FLOPs to compute. The result is output as Python/numpy or MATLAB code.
        <p><i>Beware:</i> this is still highly unpolished alpha-level software. Many features are missing, and there is no guarantee that the expressions output are optimal or even correct. It's best to think of the results as a source of inspiration rather than something to be blindly trusted.
-       <p><b>An example to paste:</b>
-       <pre>
-         \# variable declarations
-         \K: n x n posdef
-         \y: n x 1
-         \d: 1 x 1
-         \
-         \# dimension estimates
-         \n ~ 100
-         \
-         \# expression to be optimized
-         \tmp pi = 3.14159;
-         \r = 0.5*(y' K^-1 y) + 0.5*log(det(K)) + 0.5*d*log(2*pi)
-      <p><b>TODO:</b> write some documentation.
-    <td width=10%>
-    <td width=45% align=right valign=top>
+       <p>
+         <b>Try an example:
+         <form #selectExample>
+           <select name="examples" selected="custom" #examples>
+              <option value="custom" >Custom
+              $forall ex <- examples
+                  <option value=#{sname ex}>#{lname ex}
+           $forall ex <- examples
+                <div .hiddenExample ##{sname ex}>#{txt ex}
+       <p><b>TODO:</b> write some documentation.
+    <td style="width: 64%;" valign=top>
       <form #matrizerPrgm>
-        <textarea cols=80 rows=20 name=program>
+        <textarea rows=20 name=program #prgmtext>
         <input type=hidden name=iters value=5>
         <input type=hidden name=beamSize value=20>
         <input type=hidden name=nRewrites value=4>
-        <input type=submit value=Optimize>
-<p>
-<div #error>
-<div #loadingparse><font color=red>Loading parse...</font>
-<div #parseresult>
-  <p>Parsed as symbol table:
-  <pre #symtable>
-  <p>Naive AST:
-  <pre #naiveast>
-  <p>Naive computation requires 
-     <span #nflops>
-     \FLOPs. 
-<div #loadingopt><font color=red>Loading optimized expression...</font>
-<div #optimizeresult>
-  <p>Optimized result requires 
-     <span #oflops>
-     \FLOPs.
-  <p>Optimized AST:
-  <pre #optast>
-  <p>Python/numpy code:
-  <pre #numpy>
-  <p>MATLAB code:
-  <pre #matlab>
+        <div align=right>
+          <input type=submit value=Optimize>
+      <div #error>
+      <div #loadingparse><font color=red>Parsing expression...</font>
+      <div #parseresult>
+        <p>Parsed as symbol table:
+        <pre #symtable>
+        <p>Naive AST:
+        <pre #naiveast>
+        <p>Naive computation requires 
+           <span #nflops>
+           \FLOPs. 
+      <div #loadingopt><font color=red>Optimizing, please wait...</font>
+      <div #optimizeresult>
+        <p>Optimized result requires 
+           <span #oflops>
+           \FLOPs.
+        <p>Optimized AST:
+        <pre #optast>
+        <p>Python/numpy code:
+        <pre #numpy>
+        <p>MATLAB code:
+        <pre #matlab>

@@ -2,6 +2,19 @@ module Handler.Home where
 
 import Import
 import Matrizer.Util
+import TestCases
+
+data Example = Example
+    { sname :: String
+    , lname  :: String
+    , txt :: String
+    }
+
+
+examples = [ Example "gaussianlik" "Gaussian log-density" $(readTest "gaussian.mtr")
+           , Example "normaleqns" "Normal equations" $(readTest "normaleqns.mtr")
+           , Example "wmslemma" "Matrix inversion lemma" $(readTest "matrix_inv_lemma1.mtr")
+            ]
 
 getHomeR :: Handler Html
 getHomeR = defaultLayout $ do

@@ -1,9 +1,12 @@
 # normal equations for linear regression
 
+# variable declarations
 X: n x d
 y: n x 1
 
+# dimension estimates
 n ~ 100
 d ~ 5
 
+# expression to be optimized
 w = (X'X)^-1 X' y

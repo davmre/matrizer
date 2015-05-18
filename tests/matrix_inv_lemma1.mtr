@@ -1,10 +1,15 @@
+# Sherman–Morrison–Woodbury formula
+# http://en.wikipedia.org/wiki/Woodbury_matrix_identity
+
+# variable declarations
 A : n x n
 C : m x m
 U : n x m
 V : m x n
 
-
+# dimension estimates
 n ~ 1000
 m ~ 10
 
+# expression to be optimized
 D = (A^-1 + U * C * V)^-1

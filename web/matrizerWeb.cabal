@@ -24,6 +24,7 @@ library
                      Handler.Home
                      Handler.ParsePrgm
                      Handler.Optimize
+                     TestCases
 
     if flag(dev) || flag(library-only)
         cpp-options:   -DDEVELOPMENT

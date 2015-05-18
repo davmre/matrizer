@@ -132,7 +132,7 @@ generateMatlab (Branch1 MDiagVM t) = "diag(" ++ (generateMatlab t) ++ ")"
 generateMatlab (Branch1 MEntrySum t) = "sum(" ++ (generateMatlab t) ++ ")"
 
 generateMatlab (Let lhs rhs tmp (Leaf _)) = lhs ++ " = " ++ (generateMatlab rhs)  ++ "\n"
-generateMatlab (Let lhs rhs tmp body) = lhs ++ " = " ++ (generateMatlab rhs) ++ "\n" ++ (generateMatlab body) ++ ";"
+generateMatlab (Let lhs rhs tmp body) = lhs ++ " = " ++ (generateMatlab rhs) ++ ";\n" ++ (generateMatlab body) 
 
 symTableMatlab :: SymbolTable -> String
 symTableMatlab tbl = foldl (++)  "" [tblEntry k m | (k,m) <- Map.toList tbl]  where

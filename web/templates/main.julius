@@ -10,12 +10,18 @@ $(function(){
             url: "@{ParsePrgmR}",
             data: $("#matrizerPrgm").serialize(),
             success: function(data) {
-	        $("#error").hide();
 	        $("#loadingparse").hide();
                 $("#symtable").html(data.symboltable);
                 $("#naiveast").html(data.prgm);
                 $("#nflops").text(''+data.flops);
 	        $("#parseresult").show();
+            },
+            error: function(xhr, status, error) {
+                data = $.parseJSON(xhr.responseText)
+                $("#error").html("<b><font color=red>Error:</font></b> <tt>" + data.error + "</tt>");
+		$("#error").show();
+                $("#loadingparse").hide();
+                $("#loadingopt").hide();
             },
             // this only refers to the data type of the *returned* data
             dataType: "json"
@@ -25,7 +31,6 @@ $(function(){
             url: "@{OptimizeR}",
             data: $("#matrizerPrgm").serialize(),
             success: function(data) {
-	        $("#error").hide();
 	        $("#loadingopt").hide();
                 $("#optast").html(data.prgm);
                 $("#numpy").html(data.python);
@@ -33,9 +38,32 @@ $(function(){
                 $("#oflops").text(''+data.flops);
 	        $("#optimizeresult").show();
             },
+            error: function(xhr, status, error) {
+                errdiv = $("#error");
+                if( errdiv.css("display") == 'none' ){
+                  data = $.parseJSON(xhr.responseText)
+                  errdiv.html("<b><font color=red>Optimizer error:</font></b> <tt>" + data.error + "</tt>");
+                  errdiv.show();
+                }
+            },
             // this only refers to the data type of the *returned* data
             dataType: "json"
         });
         event.preventDefault();
     });
+
+
+    $('#examples').change(function() {
+        if (this.selectedIndex == 0) {
+          $("#prgmtext").val("");
+        } else {
+           var key = this.options[this.selectedIndex].value;
+           $("#prgmtext").val($("#" + key).text());
+        }
+    });
+
+    $('#prgmtext').on('input', function() {
+      $('#examples').val("custom");
+    });
+   
 });
