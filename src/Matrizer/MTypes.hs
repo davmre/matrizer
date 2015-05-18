@@ -55,14 +55,14 @@ instance Show TernOp where
 
 instance Show BinOp where
     show MProduct = "mmul"
-    show MScalarProduct = "*"
-    show MHadamardProduct = ".*"
-    show MColProduct = "*c" -- don't really expect people to use this input syntax 
+    show MScalarProduct = "smul"
+    show MHadamardProduct = "hmul"
+    show MColProduct = "cmul" -- don't really expect people to use this input syntax 
                             -- except for internal test cases
-    show MSum = "+"
-    show MDiff = "-"
-    show MLinSolve = "\\"
-    show MTriSolve = "\\tri"
+    show MSum = "add"
+    show MDiff = "sub"
+    show MLinSolve = "solve"
+    show MTriSolve = "triSolve"
     show MCholSolve = "cholSolve"
 
 instance Show UnOp where
