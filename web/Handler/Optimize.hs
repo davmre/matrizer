@@ -1,13 +1,24 @@
 module Handler.Optimize where
 
+
 import Matrizer.Util
 import Matrizer.Optimization
 import Matrizer.CodeGen
-import System.Timeout
+import System.CPUTime
 import Import
 import Control.Applicative
 import Control.Concurrent
 import Control.Concurrent.Async
+import Data.Scientific
+
+timeItT :: IO a -> IO (Double, a)
+timeItT ioa = do
+    t1 <- getCPUTime
+    a <- ioa
+    t2 <- getCPUTime
+    let t :: Double
+	t = fromIntegral (t2-t1) * 1e-12
+    return (t, a)
 
 limited :: Int -> (a -> b) -> a -> IO (Maybe b)
 limited n f a = isLeft <$> race (return $! f a) (threadDelay n)
@@ -22,12 +33,13 @@ postOptimizeR =
              beamSize <- runInputPost $ ireq intField "beamSize"
              nRewrites <- runInputPost $ ireq intField "nRewrites"
 	     let postedString = (unpack postedText)
-	     stuff <-lift $ limited 10000000 (doOptimize postedString  iters beamSize) nRewrites
+	     (execTime, stuff) <-lift $ timeItT $ limited 10000000 (doOptimize postedString  iters beamSize) nRewrites
              case stuff of
-                  Nothing -> sendResponseStatus status500 $ object [("error", "optimization timed out after 10 seconds.")]
+                  Nothing -> sendResponseStatus status500 $ object [("error", String $ pack $ "optimization timed out after 10 seconds.")]
                   Just (Left err) -> sendResponseStatus status400 $ object [("error", String $ pack $ show err)]
                   Just (Right (tree, flops)) -> return $ object [("prgm", String $ pack $ show tree), 
                                                           ("python", String $ pack $ generateNumpy tree),
                                                           ("matlab", String $ pack $ generateMatlab tree),
-                                                          ("flops", Number $ fromIntegral flops)]
+                                                          ("flops", Number $ fromIntegral flops), 
+							  ("exectime", Number $ fromFloatDigits execTime)]
 

@@ -6,6 +6,7 @@ $(function(){
         $("#optimizeresult").hide();
 	$("#loadingparse").show();
 	$("#loadingopt").show();
+        $("#loadingopt").html("<b><font color=red>Optimizing, please wait...</font></b>");
         $.ajax({
             type: "POST",
             url: "@{ParsePrgmR}",
@@ -19,6 +20,7 @@ $(function(){
             },
             error: function(xhr, status, error) {
                 data = $.parseJSON(xhr.responseText)
+		$("#opterror").hide()
                 $("#error").html("<b><font color=red>Error:</font></b> <tt>" + data.error + "</tt>");
 		$("#error").show();
                 $("#loadingparse").hide();
@@ -32,7 +34,7 @@ $(function(){
             url: "@{OptimizeR}",
             data: $("#matrizerPrgm").serialize(),
             success: function(data) {
-	        $("#loadingopt").hide();
+	        $("#loadingopt").html("Optimization completed in " + (data.exectime).toFixed(3) + " seconds.")
                 $("#optast").html(data.prgm);
                 $("#numpy").html(data.python);
                 $("#matlab").html(data.matlab);
@@ -43,7 +45,7 @@ $(function(){
                 opterrdiv = $("#opterror");
                 data = $.parseJSON(xhr.responseText)
                 opterrdiv.html("<b><font color=red>Optimizer error:</font></b> <tt>" + data.error + "</tt>");
-                if( opterrdiv.css("display") == 'none' ){
+                if( $('#error').css("display") == 'none' ){
                   opterrdiv.show();
                 }
                 $("#loadingparse").hide();

@@ -37,7 +37,7 @@
       <div #loadingopt><b><font color=red>Optimizing, please wait...</font></b>
       <div #opterror>
       <div #optimizeresult>
-        <p>Optimized result requires 
+        <p>Result requires 
            <span #oflops>
            \FLOPs.
         <p>Optimized AST:
