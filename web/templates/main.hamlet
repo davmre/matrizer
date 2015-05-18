@@ -20,7 +20,10 @@
       <p><b>TODO:</b> write some documentation.
     <td width=10%>
     <td width=45% align=right valign=top>
-      <form method=post action=@{HomeR}>
+      <form method=post action=@{OptimizeR}>
         <textarea cols=80 rows=20 name=program>
+        <input type=hidden name=iters value=5>
+        <input type=hidden name=beamSize value=20>
+        <input type=hidden name=nRewrites value=4>
         <input type=submit value="Optimize">
 <p>

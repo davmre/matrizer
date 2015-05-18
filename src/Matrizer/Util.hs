@@ -1,5 +1,7 @@
 module Matrizer.Util 
-( optimizeStr
+( optimizeStr,
+  doParse,
+  doOptimize
 ) where
 
 import qualified Data.Map as Map
@@ -18,6 +20,19 @@ fakeSymbols = Map.fromList [("A", Matrix 1000 1000 []), ("B", Matrix 1000 1000 [
 
 fakeTree :: Expr
 fakeTree = Branch2 MProduct (Branch2 MProduct (Leaf "A") (Leaf "B") ) (Leaf "x")
+
+doParse :: String -> ThrowsError (SymbolTable, Expr, Int)
+doParse inp = do (tbl, tree) <- readInput inp
+                 prgm <- preprocess tree tbl
+                 matr <- typeCheck prgm tbl
+                 flops <- treeFLOPs prgm tbl
+                 return $ (tbl, prgm, flops)
+
+doOptimize :: String -> Int -> Int -> Int -> ThrowsError (Expr, Int)
+doOptimize prgm iters beamSize nRewrites = 
+           do (tbl, tree, flops) <- doParse prgm
+              (optTree, dflops) <- beamSearchWrapper iters beamSize nRewrites tbl tree
+              return $ (optTree, (flops+dflops))
 
 dumpInfo :: SymbolTable -> Expr -> ThrowsError String
 dumpInfo tbl raw_prgm = do prgm <- preprocess raw_prgm tbl

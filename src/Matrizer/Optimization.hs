@@ -1,4 +1,7 @@
-module Matrizer.Optimization where
+module Matrizer.Optimization (
+  optimize
+, beamSearchWrapper
+) where
 
 import Data.Maybe
 import qualified Data.Map as Map
@@ -103,10 +106,13 @@ recreateZipper _ z = z
 -- Main optimizer logic
 
 optimize :: Expr -> SymbolTable -> ThrowsError (Expr, Int)
-optimize expr tbl = do beam <- beamSearch 5 20 4 tbl [(expr, 0)]
-                       return $ head beam
+optimize expr tbl = beamSearchWrapper 5 20 4 tbl expr
 
 ----------------------------------------------------------------
+
+beamSearchWrapper iters beamSize nRewrites tbl expr = 
+                  do beam <- beamSearch iters beamSize nRewrites tbl [(expr, 0)]
+                     return $ head beam
 
 -- recursive wrapper function to iterate beam search
 beamSearch :: Int -> Int -> Int -> SymbolTable -> [(Expr, Int)] -> ThrowsError [(Expr, Int)]

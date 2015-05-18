@@ -5,3 +5,5 @@
 /robots.txt RobotsR GET
 
 / HomeR GET POST
+/parse ParsePrgmR POST
+/optimize OptimizeR POST
