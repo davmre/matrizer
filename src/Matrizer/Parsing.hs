@@ -213,7 +213,7 @@ subSymbolDef s defs =
     in case reads s of
         [(n, "")] -> return n
         [(_, _) ] -> throwError $ BadDimension s
-        [       ] -> maybe (throwError $ UnboundName [c])
+        [       ] -> maybe (throwError $ BadDimension [c])
                            return (Map.lookup c defs)
         _         -> throwError $ BadDimension s
 
