@@ -16,5 +16,5 @@ m ~ 10
 alpha = Kinv * y;
 tmp t1 = Ks*Kinv;
 tmp t2 = t1 * dK;
-mean = -1*(t2 * alpha);
-cov = Kss + t2 * t1';
+dmean = -1*(t2 * alpha);
+dcov = t2 * t1';

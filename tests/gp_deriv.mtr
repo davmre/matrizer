@@ -4,7 +4,6 @@
 Kinv: n x n posdef
 dK: n x n symmetric
 Ks: m x n
-Kss: m x m
 y: n x 1
 
 
@@ -14,5 +13,5 @@ m ~ 10
 
 # expression to be optimized
 alpha = Kinv * y;
-mean = -1*Ks * Kinv * dK * Kinv * y;
-cov = Kss + Ks * Kinv * dK * Kinv * Ks'
+dmean = -1*Ks * Kinv * dK * Kinv * y;
+dcov = Ks * Kinv * dK * Kinv * Ks'
