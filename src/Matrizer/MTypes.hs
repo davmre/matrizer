@@ -71,7 +71,7 @@ instance Show UnOp where
     show MChol = "chol"
     show MTrace = "tr"
     show MDet = "det"
-    show MDiagVM = "diag"
+    show MDiagVM = "toDiag"
     show MDiagMV = "diag"
     show MEntrySum = "sum"
     show (MElementWise sop) = show sop
