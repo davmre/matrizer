@@ -1,0 +1,20 @@
+# derivative of GP predictive mean and cov wrt training kernel
+
+# variable declarations
+Kinv: n x n posdef
+dK: n x n symmetric
+Ks: m x n
+Kss: m x m
+y: n x 1
+
+
+# dimension estimates
+n ~ 100
+m ~ 10
+
+# expression to be optimized
+alpha = Kinv * y;
+tmp t1 = Ks*Kinv;
+tmp t2 = t1 * dK;
+mean = -1*(t2 * alpha);
+cov = Kss + t2 * t1';
