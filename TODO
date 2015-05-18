@@ -8,6 +8,7 @@
           to occur on the solution path)
 	- Optimizer should 'show its work' and return a list of
           rewrite rules applied
+        - implement http://en.wikipedia.org/wiki/Matrix_chain_multiplication
 - Other matrix operations (with appropriate optimizer rewrite rules):
   	- decompositions: eigenvalue, SVD, QR, LU
 	- matrix derivatives
