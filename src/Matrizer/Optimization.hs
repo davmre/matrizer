@@ -205,6 +205,7 @@ buildSubexpressionMap smap z@( n@(Branch3 _ _ _ _), bs) =
                       MultiMap.insert n bs rightMap 
 buildSubexpressionMap smap (Leaf _ , _) = smap
 buildSubexpressionMap smap (n@(IdentityLeaf _), bs) = smap
+buildSubexpressionMap smap (n@(ZeroLeaf _), bs) = smap
 buildSubexpressionMap smap (n@(LiteralScalar _), bs) = smap
 
 
@@ -295,6 +296,7 @@ rewriteMoves tbl e = optimizerTraversal tbl (e, [])
 
 optimizerTraversal :: SymbolTable -> MZipper -> ThrowsError [(Expr, Int)]
 optimizerTraversal _ (Leaf _, _) = return $ []
+optimizerTraversal _ (ZeroLeaf _, _) = return $ []
 optimizerTraversal _ (IdentityLeaf _, _) = return $ []
 optimizerTraversal _ (LiteralScalar _, _) = return $ []
 optimizerTraversal tbl z@( n@(Branch3 _ _ _ _), _) = 
@@ -415,7 +417,7 @@ inverseRules :: Rules
 inverseRules = [distributeInverse
                , swapInverseTranspose
                , cancelDoubleInverse
-               -- , matrixInvLemmaLeft
+               , matrixInvLemmaLeft
                , invariantIdentity
                , invToCholInv
                , cholSolvetoTri
