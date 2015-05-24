@@ -328,11 +328,12 @@ optimizeAtNode tbl t = let opts = mapMaybeFunc t [f tbl | f <- optimizationRules
                        scoreOptimizations tbl t opts
 
 scoreOptimizations :: SymbolTable -> Expr -> [Expr] -> ThrowsError [(Expr, Int)]
-scoreOptimizations tbl t opts = mapM scoreOpt opts where
+scoreOptimizations tbl t opts = mapM (scoreOpt t) opts where
                    (Right origFLOPs) = treeFLOPs t tbl
-                   scoreOpt t2 = do newFLOPs <- treeFLOPs t2 tbl
-                                    return (t2, newFLOPs - origFLOPs)
-
+                   scoreOpt t t2 = case (treeFLOPs t2 tbl) of
+                                   (Right newFLOPs) -> return (t2, newFLOPs - origFLOPs)
+                                   (Left err) -> throwError $ BadOptimization t t2 err
+                                    
 -- Take a zipper representing a subtree, and a new subtree to replace that subtree.
 -- return a full (rooted) tree with the new subtree in the appropriate place.
 reconstructTree :: MZipper -> Expr -> Expr
@@ -414,7 +415,7 @@ inverseRules :: Rules
 inverseRules = [distributeInverse
                , swapInverseTranspose
                , cancelDoubleInverse
-               , matrixInvLemmaLeft
+               -- , matrixInvLemmaLeft
                , invariantIdentity
                , invToCholInv
                , cholSolvetoTri
@@ -611,9 +612,14 @@ transposeTrace _ _ = Nothing
 -- tr(cA) <-> c*tr(A)
 linearTrace :: Rule
 linearTrace _ (Branch1 MTrace (Branch2 MSum a b)) = Just (Branch2 MSum (Branch1 MTrace a) (Branch1 MTrace b))
-linearTrace _ (Branch2 MSum (Branch1 MTrace a) (Branch1 MTrace b)) = Just (Branch1 MTrace (Branch2 MSum a b))
+linearTrace tbl (Branch2 MSum (Branch1 MTrace a) (Branch1 MTrace b)) = 
+            let Right (Matrix r1 c1 _ ) = treeMatrix a tbl
+                Right (Matrix r2 c2 _ ) = treeMatrix b tbl in
+                if (r1==r2) && (c1==c2)
+                then Just (Branch1 MTrace (Branch2 MSum a b))
+                else Nothing
 linearTrace _ (Branch1 MTrace (Branch2 MScalarProduct a b)) = Just (Branch2 MScalarProduct (Branch1 MTrace a) (Branch1 MTrace b) )
-linearTrace _ (Branch2 MScalarProduct (Branch1 MTrace a) (Branch1 MTrace b) ) = Just (Branch1 MTrace (Branch2 MScalarProduct a b)) 
+linearTrace tbl (Branch2 MScalarProduct (Branch1 MTrace a) (Branch1 MTrace b) ) = Just (Branch1 MTrace (Branch2 MScalarProduct a b)) 
 linearTrace _ (Branch2 MProduct (Branch1 MTrace a) (Branch1 MTrace b) ) = Just (Branch1 MTrace (Branch2 MScalarProduct a b)) 
 linearTrace _ _ = Nothing
 
@@ -918,6 +924,7 @@ matrixInvLemmaRight tbl (Branch2 MDiff (Branch1 MInverse a) (Branch3 MTernaryPro
                     -- MIL V: E, H
                     Just (Branch1 MInverse (Branch2 MSum a (Branch3 MTernaryProduct c d e)))    
                     else Nothing
+
 matrixInvLemmaRight tbl z@(Branch2 MDiff ainv (Branch3 MTernaryProduct (Branch2 MProduct ainv2 u ) (Branch1 MInverse ( Branch2 MSum cinv (Branch3 MTernaryProduct v ainv3 u2) ) ) (Branch2 MProduct v2 ainv4) ) )  =
    if (ainv == ainv2 && ainv == ainv3 && ainv == ainv4)&& (u == u2)&& (v == v2)
    then Just (Branch1 MInverse (Branch2 MSum (Branch1 MInverse ainv) (Branch3 MTernaryProduct u (Branch1 MInverse cinv) v)))

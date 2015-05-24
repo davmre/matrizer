@@ -154,12 +154,13 @@ data MError = SizeMismatch BinOp Matrix Matrix Expr Expr
             | Parser ParseError
             | BadCrumbs Expr String
             | MaybeError String
+            | BadOptimization Expr Expr MError 
 
 showError :: MError -> String
 showError (SizeMismatch op m1 m2 t1 t2) =
-        "Invalid matrix dimensions for operation ("
-        ++ showDim m1 ++ ") " ++ show op ++ " (" ++ showDim m2 ++ ")"
-        ++ ", trees:\n" ++ (show t1) ++ "\n" ++ (show t2) 
+        "Invalid matrix dimensions for operation " ++ show op ++ " ("
+        ++ showDim m1 ++ "), (" ++ showDim m2 ++ ")"
+        ++ ", applied to trees:\n" ++ (show t1) ++ "\n" ++ (show t2) 
 showError (SizeMismatchTern op m1 m2 m3) =
         "Invalid matrix dimensions for ternary operator '"
         ++ show op ++ "' applied to matrices " ++ showDim m1 ++ ", "
@@ -181,6 +182,7 @@ showError (Parser err)     = "Parse error at " ++ show err
 showError (AnalysisError err)     = "Analysis error: " ++ show err
 showError (BadCrumbs exp err)     = "Breadcrumbs don't match the current expression: " ++ show exp ++ ", additional info: " ++ err
 showError (MaybeError err)     = "Maybe expression returned Nothing: " ++ show err
+showError (BadOptimization t t2 err) = "Optimization rule returned invalid expression.\nOriginal: "++ show t ++ "\nOptimized: " ++ show t2 ++ "\nError: " ++ show err
 
 instance Show MError where show = showError
 
