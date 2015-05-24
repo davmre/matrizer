@@ -118,8 +118,8 @@ beamSearchWrapper iters beamSize nRewrites tbl expr =
 beamSearch :: Int -> Int -> Int -> SymbolTable -> [(Expr, Int)] -> ThrowsError [(Expr, Int)]
 beamSearch 0 _ _ _ beam = return $ beam
 beamSearch iters beamSize nRewrites tbl beam = 
-                 do newBeam1 <- beamIter rewriteMoves beamSize nRewrites tbl beam
-                    newBeam2 <- beamIter commonSubexpMoves beamSize 1 tbl newBeam1
+                 do newBeam1 <- beamIter commonSubexpMoves beamSize 1 tbl beam
+                    newBeam2 <- beamIter rewriteMoves beamSize nRewrites tbl newBeam1
                     beamSearch (iters-1) beamSize nRewrites tbl newBeam2
 
 type MoveRewriter = SymbolTable -> Expr -> ThrowsError [(Expr, Int)]
@@ -205,7 +205,7 @@ buildSubexpressionMap smap z@( n@(Branch3 _ _ _ _), bs) =
                       MultiMap.insert n bs rightMap 
 buildSubexpressionMap smap (Leaf _ , _) = smap
 buildSubexpressionMap smap (n@(IdentityLeaf _), bs) = smap
-buildSubexpressionMap smap (n@(ZeroLeaf _), bs) = smap
+buildSubexpressionMap smap (n@(ZeroLeaf _ _), bs) = smap
 buildSubexpressionMap smap (n@(LiteralScalar _), bs) = smap
 
 
@@ -296,7 +296,7 @@ rewriteMoves tbl e = optimizerTraversal tbl (e, [])
 
 optimizerTraversal :: SymbolTable -> MZipper -> ThrowsError [(Expr, Int)]
 optimizerTraversal _ (Leaf _, _) = return $ []
-optimizerTraversal _ (ZeroLeaf _, _) = return $ []
+optimizerTraversal _ (ZeroLeaf _ _, _) = return $ []
 optimizerTraversal _ (IdentityLeaf _, _) = return $ []
 optimizerTraversal _ (LiteralScalar _, _) = return $ []
 optimizerTraversal tbl z@( n@(Branch3 _ _ _ _), _) = 
