@@ -1,7 +1,6 @@
 module Matrizer.Optimization (
   optimize
 , beamSearchWrapper
-, beamSearchJointWrapper
 , reOptimize
 , rewriteMoves
 , commonSubexpMoves
