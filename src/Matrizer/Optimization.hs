@@ -1,6 +1,10 @@
 module Matrizer.Optimization (
   optimize
 , beamSearchWrapper
+, beamSearchJointWrapper
+, reOptimize
+, rewriteMoves
+, commonSubexpMoves
 ) where
 
 import Data.Maybe
@@ -114,6 +118,7 @@ beamSearchWrapper iters beamSize nRewrites tbl expr =
                   do beam <- beamSearch iters beamSize nRewrites tbl [(expr, 0)]
                      return $ head beam
 
+
 -- recursive wrapper function to iterate beam search
 beamSearch :: Int -> Int -> Int -> SymbolTable -> [(Expr, Int)] -> ThrowsError [(Expr, Int)]
 beamSearch 0 _ _ _ beam = return $ beam
@@ -128,6 +133,7 @@ type MoveRewriter = SymbolTable -> Expr -> ThrowsError [(Expr, Int)]
 beamIter :: MoveRewriter -> Int -> Int -> SymbolTable -> [(Expr, Int)] -> ThrowsError [(Expr, Int)]
 beamIter rw beamSize nRewrites tbl oldBeam = do rewrites <- reOptimize nRewrites rw tbl oldBeam
                                                 return $ take beamSize (sortBy (comparing snd) rewrites)
+
 
 -- for cse, same pattern of generating a list of rewrites and sorting them
 -- 'reoptimize n' takes a symboltable and a list of candidates, and generates a new list
@@ -154,6 +160,8 @@ reOptimizeOnce rw tbl ((t, score):ts) = do localDeltas <- rw tbl t
                                            let globalDeltas =  [(r, score+ds) | (r, ds) <- localDeltas] in
                                                return $ globalDeltas ++ newTs
 
+
+
 ----------------------------------------------------------------
 
 -- clean up tmp variables:
@@ -162,6 +170,7 @@ reOptimizeOnce rw tbl ((t, score):ts) = do localDeltas <- rw tbl t
 
 variablesUsed :: Expr -> [VarName] -> [VarName]
 variablesUsed (Leaf a) vs = a:vs
+variablesUsed (ZeroLeaf _ _) vs = vs
 variablesUsed (IdentityLeaf _ ) vs = vs
 variablesUsed (LiteralScalar _ ) vs = vs
 variablesUsed (Branch1 _ a ) vs = variablesUsed a vs
@@ -427,6 +436,7 @@ transposeRules :: Rules
 transposeRules = [distributeTranspose
                  , swapTransposeInverse
                  , cancelTranspose
+                 , groupTranspose
                  ]
 
 traceRules :: Rules
@@ -477,6 +487,7 @@ groundSubExprHelper (Let lhs rhs tmp body) v subexpr =
                     then Let lhs (groundSubExprHelper rhs v subexpr) tmp (groundSubExprHelper body v (Leaf lhs))
                     else Let lhs (groundSubExprHelper rhs v subexpr) tmp (groundSubExprHelper body v subexpr)
 groundSubExprHelper e v subexpr = e
+
 
 -- (A+B)+C <-> A+(B+C)
 assocSum :: Rule
@@ -545,8 +556,10 @@ literalScalars _ _ = Nothing
 
 diffToScalar :: Rule
 diffToScalar _ (Branch2 MDiff a b) = Just (Branch2 MSum a (Branch2 MScalarProduct (LiteralScalar (-1)) b))
-diffToScalar _ (Branch2 MSum a (Branch2 MScalarProduct (LiteralScalar (-1)) b)) = Just (Branch2 MDiff a b)
-diffToScalar _ (Branch2 MSum a (Branch2 MScalarProduct (LiteralScalar c) b)) = Just (Branch2 MDiff a (Branch2 MScalarProduct (LiteralScalar (-c)) b))
+diffToScalar _ (Branch2 MSum a (Branch2 MScalarProduct (LiteralScalar c) b)) = 
+             if c == -1
+             then Just (Branch2 MDiff a b)
+             else Just (Branch2 MDiff a (Branch2 MScalarProduct (LiteralScalar (-c)) b))
 diffToScalar _ (Branch2 MDiff a (Branch2 MScalarProduct (LiteralScalar c) b)) = Just (Branch2 MSum a (Branch2 MScalarProduct (LiteralScalar (-c)) b))
 diffToScalar _ _ = Nothing
 
@@ -894,6 +907,19 @@ cancelTranspose tbl (Branch1 MTranspose t) =
                 let Right (Matrix _ _ props) = treeMatrix t tbl in
                     if Symmetric `elem` props then Just t else Nothing
 cancelTranspose _ _ = Nothing
+
+-- A B' -> (BA)' if A is symmetric.  
+-- We could get this ability with a
+-- simple rule that allows replacing A with A', but it's expensive to
+-- rewrite all symmetric matrices without first knowing whether
+-- the rewrite might be useful.
+groupTranspose :: Rule
+groupTranspose tbl (Branch2 MProduct a (Branch1 MTranspose b)) = 
+               let Right (Matrix _ _ props) = treeMatrix a tbl in
+               if Symmetric `elem` props
+               then Just (Branch1 MTranspose (Branch2 MProduct b a))
+               else Nothing
+groupTranspose _ _ =  Nothing
 
 -- A'^-1 -> A^-1'
 swapInverseTranspose :: Rule

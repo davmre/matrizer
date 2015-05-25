@@ -1,7 +1,8 @@
 module Matrizer.Util 
 ( optimizeStr,
   doParse,
-  doOptimize
+  doOptimize,
+  parseFile
 ) where
 
 import qualified Data.Map as Map
@@ -54,3 +55,8 @@ optimizeStr :: String -> String
 optimizeStr inp =  case readInput inp of
                         Left err -> show err
                         Right (tbl, tree) -> errorStr $ dumpInfo tbl tree
+
+parseFile :: String -> IO (SymbolTable, Expr, Int)
+parseFile fname = do contents <- readFile fname
+                     let Right (tbl, tree, int) = doParse contents
+                     return $ (tbl, tree, int)
