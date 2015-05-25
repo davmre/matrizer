@@ -13,7 +13,6 @@ $(function(){
             data: $("#matrizerPrgm").serialize(),
             success: function(data) {
 	        $("#loadingparse").hide();
-                $("#symtable").html(data.symboltable);
                 $("#naiveast").html(data.prgm);
                 $("#nflops").text(''+data.flops);
 	        $("#parseresult").show();
