@@ -28,6 +28,11 @@ textarea {
   display: none;
 }
 
+#advancedOptions {
+  display: none;
+}
+
+
 table {
   border: 0;
 }

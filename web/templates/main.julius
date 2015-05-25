@@ -68,6 +68,14 @@ $(function(){
 
     $('#prgmtext').on('input', function() {
       $('#examples').val("custom");
-    });
-   
+    });   
+
+   var timeoutId = 0;
+   $('#optimize').mousedown(function() {
+       timeoutId = setTimeout(function () {$("#advancedOptions").show();}, 1000);
+    })
+       
 });
+
+
+

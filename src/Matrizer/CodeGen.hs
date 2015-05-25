@@ -109,6 +109,9 @@ generateMatlab (Branch2 MTriSolve t1 t2) = "(" ++ (generateMatlab t1) ++
                                           "\\" ++ (generateMatlab t2)  ++ ")"
 generateMatlab (Branch2 MCholSolve (Branch1 MChol t1) t2) = "(" ++ (generateMatlab t1) ++
                                             ")\\" ++ (generateMatlab t2) ++ ")"
+generateMatlab (Branch2 MCholSolve t1 t2) = "(" ++ (generateMatlab t1) ++
+                                            "'\\(" ++ (generateMatlab t1) ++
+                                            "\\" ++ (generateMatlab t2) ++ "))"
 generateMatlab (Branch2 MProduct t1 t2) = "(" ++ (generateMatlab t1) ++
                                           " * " ++ (generateMatlab t2)  ++ ")"
 generateMatlab (Branch2 MScalarProduct t1 t2) = "(" ++ (generateMatlab t1) ++

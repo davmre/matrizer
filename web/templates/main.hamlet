@@ -11,9 +11,6 @@
     <td style="width: 64%;" valign=top>
       <form #matrizerPrgm>
         <textarea rows=20 name=program #prgmtext>
-        <input type=hidden name=iters value=5>
-        <input type=hidden name=beamSize value=20>
-        <input type=hidden name=nRewrites value=4>        
         <b>Try an example:
         <select name="examples" selected="custom" #examples>
            <option value="custom" >Custom
@@ -22,7 +19,11 @@
         $forall ex <- examples
              <div .hiddenExample ##{sname ex}>#{txt ex}
         <span style="float: right">
-          <input type=submit value=Optimize>
+          <input type=submit value=Optimize #optimize>
+        <div #advancedOptions>
+          Iterations: <input type=number name=iters value=5 min=1 max=100 step=1 style = "width: 3em">
+          Beam size: <input type=number name=beamSize value=20 min=1 step=1 max=10000 style = "width: 5em">
+          Rewrite depth: <input type=number name=nRewrites value=4 min=1 step=1 max=100 style = "width: 3em">
       <p>
       <div #error>
       <div #loadingparse><b><font color=red>Parsing expression...</font></b>
