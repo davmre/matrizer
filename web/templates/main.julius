@@ -71,9 +71,9 @@ $(function(){
 
    var timeoutId = 0;
    $('#optimize').mousedown(function() {
-       timeoutId = setTimeout(function () {$("#advancedOptions").show();}, 1000);
-    })
-       
+       timeoutId = setTimeout(function () {$("#advancedOptions").show();}, 1000)
+    }).bind('mouseup', function() {
+       clearTimeout(timeoutId);});
 });
 
 
