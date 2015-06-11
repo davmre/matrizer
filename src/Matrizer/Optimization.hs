@@ -745,6 +745,7 @@ traceProduct tbl (Branch1 MTrace (Branch2 MProduct a (Branch1 MTranspose b))) =
                if (r1==r2) && (c1==c2) 
                then Just (Branch1 MEntrySum (Branch2 MHadamardProduct a b))
                else Nothing
+traceProduct tbl (Branch1 MEntrySum (Branch2 MHadamardProduct a b)) = Just (Branch1 MTrace (Branch2 MProduct a (Branch1 MTranspose b)))
 traceProduct _ _ = Nothing
 
 entrySumLinear :: Rule
