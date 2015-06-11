@@ -2,7 +2,8 @@ module Matrizer.Util
 ( optimizeStr,
   doParse,
   doOptimize,
-  parseFile
+  parseFile,
+  runDebug
 ) where
 
 import qualified Data.Map as Map
@@ -13,7 +14,7 @@ import Matrizer.Parsing
 import Matrizer.Optimization
 import Matrizer.Analysis
 import Matrizer.CodeGen
-
+import Control.Monad
 ---------------------------------------------------------------
 
 fakeSymbols :: SymbolTable
@@ -28,6 +29,16 @@ doParse inp = do (tbl, tree) <- readInput inp
                  matr <- typeCheck prgm tbl
                  flops <- treeFLOPs prgm tbl
                  return $ (tbl, prgm, flops)
+
+showBeam [] = ""
+showBeam ((expr, n):beam) = "**** " ++ (show n) ++ "\n" ++ show expr ++ "\n" ++ (showBeam beam)
+
+runDebug :: SymbolTable -> Expr -> IO ()
+runDebug tbl prgm = let beams = beamSearchDebug 5 20 4 tbl [(prgm, 0)] in 
+                    case beams of 
+                    (Left err) -> putStrLn (show err)
+                    (Right bbeams) -> void $ mapM writeBeam (zip [1..(length bbeams)] bbeams)
+                       where writeBeam (n, beam) = writeFile ("beam" ++ show n) (showBeam beam)
 
 doOptimize :: String -> Int -> Int -> Int -> ThrowsError (Expr, Int)
 doOptimize prgm iters beamSize nRewrites = 

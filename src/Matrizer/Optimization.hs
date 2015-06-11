@@ -1,6 +1,7 @@
 module Matrizer.Optimization (
   optimize
 , beamSearchWrapper
+, beamSearchDebug
 , reOptimize
 , rewriteMoves
 , commonSubexpMoves
@@ -119,17 +120,28 @@ beamSearchWrapper iters beamSize nRewrites tbl expr =
 
 
 -- recursive wrapper function to iterate beam search
-beamSearch :: Int -> Int -> Int -> SymbolTable -> [(Expr, Int)] -> ThrowsError [(Expr, Int)]
+type Beam = [(Expr, Int)]
+
+beamSearch :: Int -> Int -> Int -> SymbolTable -> Beam -> ThrowsError Beam
 beamSearch 0 _ _ _ beam = return $ beam
 beamSearch iters beamSize nRewrites tbl beam = 
                  do newBeam1 <- beamIter commonSubexpMoves beamSize 1 tbl beam
                     newBeam2 <- beamIter rewriteMoves beamSize nRewrites tbl newBeam1
                     beamSearch (iters-1) beamSize nRewrites tbl newBeam2
+                    
+beamSearchDebug :: Int -> Int -> Int -> SymbolTable -> Beam -> ThrowsError ([Beam])
+beamSearchDebug 0 _ _ _ beam = return (beam:[])
+beamSearchDebug iters beamSize nRewrites tbl beam = 
+                 do newBeam1 <- beamIter commonSubexpMoves beamSize 1 tbl beam
+                    newBeam2 <- beamIter rewriteMoves beamSize nRewrites tbl newBeam1
+                    beamlog <- beamSearchDebug (iters-1) beamSize nRewrites tbl newBeam2
+                    return $ newBeam1 : newBeam2 : beamlog
+           
 
-type MoveRewriter = SymbolTable -> Expr -> ThrowsError [(Expr, Int)]
+type MoveRewriter = SymbolTable -> Expr -> ThrowsError Beam
 
 -- single iteration of beam search: compute all rewrites and take the best few
-beamIter :: MoveRewriter -> Int -> Int -> SymbolTable -> [(Expr, Int)] -> ThrowsError [(Expr, Int)]
+beamIter :: MoveRewriter -> Int -> Int -> SymbolTable -> Beam -> ThrowsError Beam
 beamIter rw beamSize nRewrites tbl oldBeam = do rewrites <- reOptimize nRewrites rw tbl oldBeam
                                                 return $ take beamSize (sortBy (comparing snd) rewrites)
 
@@ -143,7 +155,7 @@ beamIter rw beamSize nRewrites tbl oldBeam = do rewrites <- reOptimize nRewrites
 
 
 -- generate all scored rewrites accessible by applying at most n rewrite rules
-reOptimize :: Int -> MoveRewriter -> SymbolTable -> [(Expr, Int)] -> ThrowsError [(Expr, Int)]
+reOptimize :: Int -> MoveRewriter -> SymbolTable -> Beam -> ThrowsError Beam
 reOptimize 0 rw tbl candidates = return $ candidates
 reOptimize n rw tbl candidates = 
            do iter1 <- reOptimizeOnce rw tbl candidates
@@ -152,7 +164,7 @@ reOptimize n rw tbl candidates =
 
 -- generate all rewrites of the given scored list of expressions, tracking the 
 -- global FLOP delta for each rewrite
-reOptimizeOnce :: MoveRewriter -> SymbolTable -> [(Expr, Int)] -> ThrowsError [(Expr, Int)]
+reOptimizeOnce :: MoveRewriter -> SymbolTable -> Beam -> ThrowsError Beam
 reOptimizeOnce _ _ [] = return $ []
 reOptimizeOnce rw tbl ((t, score):ts) = do localDeltas <- rw tbl t
                                            newTs <- reOptimizeOnce rw tbl ts
@@ -558,7 +570,9 @@ diffToScalar _ (Branch2 MDiff a b) = Just (Branch2 MSum a (Branch2 MScalarProduc
 diffToScalar _ (Branch2 MSum a (Branch2 MScalarProduct (LiteralScalar c) b)) = 
              if c == -1
              then Just (Branch2 MDiff a b)
-             else Just (Branch2 MDiff a (Branch2 MScalarProduct (LiteralScalar (-c)) b))
+             else if c < 0 
+                  then Just (Branch2 MDiff a (Branch2 MScalarProduct (LiteralScalar (-c)) b))
+                  else Nothing   
 diffToScalar _ (Branch2 MDiff a (Branch2 MScalarProduct (LiteralScalar c) b)) = Just (Branch2 MSum a (Branch2 MScalarProduct (LiteralScalar (-c)) b))
 diffToScalar _ _ = Nothing
 
