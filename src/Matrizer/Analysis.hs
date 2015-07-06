@@ -32,6 +32,7 @@ exprType strict (Leaf a) tbl = maybe (throwError $ UnboundName a) return (Map.lo
 exprType strict (IdentityLeaf n) tbl = return $ Matrix n n [Symmetric, PosDef, Diagonal, LowerTriangular]
 exprType strict (ZeroLeaf n m) tbl = return $ Matrix n m []
 exprType strict (LiteralScalar x) tbl = return $ Matrix 1 1 scalarProps
+exprType strict (Branch1 MDifferential a) tbl = exprType strict a tbl
 exprType strict (Branch3 MTernaryProduct t1 t2 t3) tbl = updateMatrixTernaryOp strict ternProductSizeCheck ternProductNewSize MTernaryProduct t1 t2 t3 tbl
 exprType strict (Branch2 MLinSolve t1 t2) tbl = updateMatrixBinaryOp strict linsolveSizeCheck truePropCheck linsolveNewSize MLinSolve t1 t2 tbl
 exprType strict (Branch2 MTriSolve t1 t2) tbl = updateMatrixBinaryOp strict linsolveSizeCheck ltriPropCheck linsolveNewSize MTriSolve t1 t2 tbl
@@ -184,8 +185,13 @@ updateMatrixTernaryOp strict sizeCheck newSize op t1 t2 t3 tbl =
                    (Matrix r2 c2 props2) = m2
                    (Matrix r3 c3 props3) = m3
                if sizeCheck r1 c1 r2 c2 r3 c3
-                  then return $ (uncurry Matrix) (newSize r1 c1 r2 c2 r3 c3) (updateTernaryProps op props1 props2 props3 t1 t2 t3)
+                  then let closedProps = (updateTernaryProps op props1 props2 props3 t1 t2 t3)
+                           s = (newSize r1 c1 r2 c2 r3 c3) 
+                           newProps = checkScalar s closedProps in
+                        return $ (uncurry Matrix) s newProps
                   else throwError $ SizeMismatchTern op m1 m2 m3
+
+checkScalar (r, c) p = if (r==1) && (c==1) then nub (p ++ scalarProps) else p
 
 updateMatrixBinaryOp :: Bool 
                       ->(Int -> Int -> Int -> Int -> Bool)
@@ -203,7 +209,10 @@ updateMatrixBinaryOp strict sizeCheck propCheck newSize op t1 t2 tbl =
                    (Matrix r2 c2 props2) = m2
                if sizeCheck r1 c1 r2 c2
                   then if (not strict) || propCheck props1 props2
-                       then return $ (uncurry Matrix) (newSize r1 c1 r2 c2) (updateBinaryProps op props1 props2 t1 t2)
+                       then let closedProps = (updateBinaryProps op props1 props2 t1 t2)
+                                s = (newSize r1 c1 r2 c2)
+                                newProps = checkScalar s closedProps in
+                             return $ (uncurry Matrix) s newProps
                        else throwError $ WrongProperties op props1 props2 t1 t2
                   else throwError $ SizeMismatch op m1 m2 t1 t2
 
