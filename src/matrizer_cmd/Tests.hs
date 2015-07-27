@@ -3,6 +3,7 @@ module Tests where
 import Matrizer.MTypes
 import Matrizer.Parsing
 import Matrizer.Analysis
+import Matrizer.Preprocess
 import Matrizer.Optimization
 import Matrizer.CodeGen
 

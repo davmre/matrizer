@@ -37,6 +37,9 @@ data UnOp = MInverse
           | MChol
           | MTrace
           | MDet
+          | MDeriv VarName
+          | MUnresolvedDeriv VarName
+          | MDifferential
           | MDiagVM -- convert a vector to a diagonal matrix
           | MDiagMV -- extract a matrix diagonal as a vector
           | MEntrySum
@@ -70,6 +73,9 @@ instance Show UnOp where
     show MTranspose = "transpose"
     show MChol = "chol"
     show MTrace = "tr"
+    show (MDeriv v) = "deriv_" ++ v
+    show (MUnresolvedDeriv v) = "unresolved_deriv_" ++ v
+    show MDifferential = "differential"
     show MDet = "det"
     show MDiagVM = "toDiag"
     show MDiagMV = "diag"
@@ -155,6 +161,8 @@ data MError = SizeMismatch BinOp Matrix Matrix Expr Expr
             | BadCrumbs Expr String
             | MaybeError String
             | BadOptimization Expr Expr MError 
+            | DerivativeFail Expr VarName
+            | AbstractExpression Expr
 
 showError :: MError -> String
 showError (SizeMismatch op m1 m2 t1 t2) =
@@ -183,7 +191,8 @@ showError (AnalysisError err)     = "Analysis error: " ++ show err
 showError (BadCrumbs exp err)     = "Breadcrumbs don't match the current expression: " ++ show exp ++ ", additional info: " ++ err
 showError (MaybeError err)     = "Maybe expression returned Nothing: " ++ show err
 showError (BadOptimization t t2 err) = "Optimization rule returned invalid expression.\nOriginal: "++ show t ++ "\nOptimized: " ++ show t2 ++ "\nError: " ++ show err
-
+showError (DerivativeFail expr v) = "Could not differentiate expression: " ++ show expr ++ " with respect to " ++ v
+showError (AbstractExpression expr) = "Tried to generate code or compute FLOPs for abstract expression: " ++ show expr
 instance Show MError where show = showError
 
 instance Error MError where

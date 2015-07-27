@@ -2,6 +2,9 @@ module Matrizer.Optimization (
   optimize
 , beamSearchWrapper
 , beamSearchDebug
+, beamIter
+, Beam
+, ScoreFn
 , reOptimize
 , rewriteMoves
 , commonSubexpMoves
@@ -110,31 +113,33 @@ recreateZipper _ z = z
 -- Main optimizer logic
 
 optimize :: Expr -> SymbolTable -> ThrowsError (Expr, Int)
-optimize expr tbl = beamSearchWrapper 5 20 4 tbl expr
+optimize expr tbl = beamSearchWrapper treeFLOPs 5 20 4 tbl expr
+
+
 
 ----------------------------------------------------------------
-
-beamSearchWrapper iters beamSize nRewrites tbl expr = 
-                  do beam <- beamSearch iters beamSize nRewrites tbl [(expr, 0)]
+type ScoreFn = (Expr -> SymbolTable -> ThrowsError Int)
+beamSearchWrapper fn iters beamSize nRewrites tbl expr = 
+                  do beam <- beamSearch fn iters beamSize nRewrites tbl [(expr, 0)]
                      return $ head beam
 
 
 -- recursive wrapper function to iterate beam search
 type Beam = [(Expr, Int)]
 
-beamSearch :: Int -> Int -> Int -> SymbolTable -> Beam -> ThrowsError Beam
-beamSearch 0 _ _ _ beam = return $ beam
-beamSearch iters beamSize nRewrites tbl beam = 
-                 do newBeam1 <- beamIter commonSubexpMoves beamSize 1 tbl beam
-                    newBeam2 <- beamIter rewriteMoves beamSize nRewrites tbl newBeam1
-                    beamSearch (iters-1) beamSize nRewrites tbl newBeam2
+beamSearch :: ScoreFn -> Int -> Int -> Int -> SymbolTable -> Beam -> ThrowsError Beam
+beamSearch fn 0 _ _ _ beam = return $ beam
+beamSearch fn iters beamSize nRewrites tbl beam = 
+                 do newBeam1 <- beamIter (commonSubexpMoves fn) beamSize 1 tbl beam
+                    newBeam2 <- beamIter (rewriteMoves fn) beamSize nRewrites tbl newBeam1
+                    beamSearch fn (iters-1) beamSize nRewrites tbl newBeam2
                     
-beamSearchDebug :: Int -> Int -> Int -> SymbolTable -> Beam -> ThrowsError ([Beam])
-beamSearchDebug 0 _ _ _ beam = return (beam:[])
-beamSearchDebug iters beamSize nRewrites tbl beam = 
-                 do newBeam1 <- beamIter commonSubexpMoves beamSize 1 tbl beam
-                    newBeam2 <- beamIter rewriteMoves beamSize nRewrites tbl newBeam1
-                    beamlog <- beamSearchDebug (iters-1) beamSize nRewrites tbl newBeam2
+beamSearchDebug :: ScoreFn -> Int -> Int -> Int -> SymbolTable -> Beam -> ThrowsError ([Beam])
+beamSearchDebug fn 0 _ _ _ beam = return (beam:[])
+beamSearchDebug fn iters beamSize nRewrites tbl beam = 
+                 do newBeam1 <- beamIter (commonSubexpMoves fn) beamSize 1 tbl beam
+                    newBeam2 <- beamIter (rewriteMoves fn) beamSize nRewrites tbl newBeam1
+                    beamlog <- beamSearchDebug fn (iters-1) beamSize nRewrites tbl newBeam2
                     return $ newBeam1 : newBeam2 : beamlog
            
 
@@ -285,20 +290,20 @@ findInsertionPoint deps tbl z@( n@(Let _ _ _ _), _) =
 
 -- High-level function to transform an expression, factoring out a subexpression
 -- as identitified by commonSubExpressions
-factorSubExpression :: Expr -> SymbolTable -> (Expr, [Breadcrumbs]) -> ThrowsError (Expr, Int)
-factorSubExpression e tbl (subexp, locs) = let tmpVar = chooseTmpVarname e in 
+factorSubExpression :: ScoreFn -> Expr -> SymbolTable -> (Expr, [Breadcrumbs]) -> ThrowsError (Expr, Int)
+factorSubExpression fn e tbl (subexp, locs) = let tmpVar = chooseTmpVarname e in 
                                            do factoredOut <- replaceSubExprs e locs tmpVar
                                               (ntbl, factoredIn) <- insertCommonDef tbl factoredOut tmpVar subexp 
-                                              flops <- treeFLOPs subexp ntbl 
+                                              flops <- fn subexp ntbl 
                                               let score = (1-(length locs)) * flops + letcost_CONST in
                                                   return $ (factoredIn, score)
 
 
 -- Given an expression, return all versions reachable by factoring out a single subexpression
-commonSubexpMoves :: MoveRewriter
-commonSubexpMoves tbl e = let smap = buildSubexpressionMap MultiMap.empty (e, [])
-                              subexprs = commonSubExpressions smap in
-                          mapM (factorSubExpression e tbl) subexprs
+commonSubexpMoves :: ScoreFn -> MoveRewriter
+commonSubexpMoves fn tbl e = let smap = buildSubexpressionMap MultiMap.empty (e, [])
+                                 subexprs = commonSubExpressions smap in
+                          mapM (factorSubExpression fn e tbl) subexprs
                           
 
 
@@ -311,48 +316,48 @@ commonSubexpMoves tbl e = let smap = buildSubexpressionMap MultiMap.empty (e, []
 -- rooted at the toplevel, i.e. they have been 'unzipped' by
 -- reconstructTree.
 
-rewriteMoves :: MoveRewriter
-rewriteMoves tbl e = optimizerTraversal tbl (e, [])
+rewriteMoves :: ScoreFn -> MoveRewriter
+rewriteMoves fn tbl e = optimizerTraversal fn tbl [] (e, [])
 
-optimizerTraversal :: SymbolTable -> MZipper -> ThrowsError [(Expr, Int)]
-optimizerTraversal _ (Leaf _, _) = return $ []
-optimizerTraversal _ (ZeroLeaf _ _, _) = return $ []
-optimizerTraversal _ (IdentityLeaf _, _) = return $ []
-optimizerTraversal _ (LiteralScalar _, _) = return $ []
-optimizerTraversal tbl z@( n@(Branch3 _ _ _ _), _) = 
-                   do thisNode <- optimizeAtNode tbl n
-                      leftBranch <- goLeft z >>= optimizerTraversal tbl
-                      centerBranch <- goDown z >>= optimizerTraversal tbl
-                      rightBranch <- goRight z >>= optimizerTraversal tbl
+optimizerTraversal :: ScoreFn -> SymbolTable -> [Rule] -> MZipper -> ThrowsError [(Expr, Int)]
+optimizerTraversal _ _ _ (Leaf _, _) = return $ []
+optimizerTraversal _ _ _ (ZeroLeaf _ _, _) = return $ []
+optimizerTraversal _ _ _ (IdentityLeaf _, _) = return $ []
+optimizerTraversal _ _ _ (LiteralScalar _, _) = return $ []
+optimizerTraversal fn tbl rules z@( n@(Branch3 _ _ _ _), _) = 
+                   do thisNode <- optimizeAtNode fn tbl rules n
+                      leftBranch <- goLeft z >>= optimizerTraversal fn tbl rules
+                      centerBranch <- goDown z >>= optimizerTraversal fn tbl rules
+                      rightBranch <- goRight z >>= optimizerTraversal fn tbl rules
                       return $ (map (reconstructTreeScore z) thisNode) ++ leftBranch ++ centerBranch ++ rightBranch
-optimizerTraversal tbl z@( n@(Branch2 _ _ _), _) =
-                   do thisNode <- optimizeAtNode tbl n
-                      leftBranch <- goLeft z >>= optimizerTraversal tbl
-                      rightBranch <- goRight z >>= optimizerTraversal tbl
+optimizerTraversal fn tbl rules z@( n@(Branch2 _ _ _), _) =
+                   do thisNode <- optimizeAtNode fn tbl rules n
+                      leftBranch <- goLeft z >>= optimizerTraversal fn tbl rules
+                      rightBranch <- goRight z >>= optimizerTraversal fn tbl rules
                       return $ (map (reconstructTreeScore z) thisNode) ++ leftBranch ++ rightBranch
-optimizerTraversal tbl z@( n@(Let _ _ _ _), _) =
-                   do thisNode <- optimizeAtNode tbl n
-                      leftBranch <- goLeft z >>= optimizerTraversal tbl
+optimizerTraversal fn tbl rules z@( n@(Let v a _ _), _) =
+                   do thisNode <- optimizeAtNode fn tbl rules n
+                      leftBranch <- goLeft z >>= optimizerTraversal fn tbl rules
                       boundTbl <- tblBind n tbl
-                      rightBranch <- goRight z >>= optimizerTraversal boundTbl
+                      rightBranch <- goRight z >>= optimizerTraversal fn boundTbl (recognizeVar v a : rules)
                       return $ (map (reconstructTreeScore z) thisNode) ++ leftBranch ++ rightBranch
-optimizerTraversal tbl z@( n@(Branch1 _ _), _) =
-                   do thisNode <- optimizeAtNode tbl n
-                      descendants <- goDown z >>= optimizerTraversal tbl
+optimizerTraversal fn tbl rules z@( n@(Branch1 _ _), _) =
+                   do thisNode <- optimizeAtNode fn tbl rules n
+                      descendants <- goDown z >>= optimizerTraversal fn tbl rules
                       return $ (map (reconstructTreeScore z) thisNode) ++ descendants
 
 
 -- Given a tree node, return a list of all transformed nodes that can
 -- be generated by applying optimization rules at that node, along with
 -- the net change in FLOPs
-optimizeAtNode :: SymbolTable -> Expr -> ThrowsError [(Expr, Int)]
-optimizeAtNode tbl t = let opts = mapMaybeFunc t [f tbl | f <- optimizationRules] in
-                       scoreOptimizations tbl t opts
+optimizeAtNode :: ScoreFn -> SymbolTable -> [Rule] -> Expr -> ThrowsError [(Expr, Int)]
+optimizeAtNode fn tbl rules t = let opts = mapMaybeFunc t [f tbl | f <- optimizationRules ++ rules ] in
+                       scoreOptimizations fn tbl t opts
 
-scoreOptimizations :: SymbolTable -> Expr -> [Expr] -> ThrowsError [(Expr, Int)]
-scoreOptimizations tbl t opts = mapM (scoreOpt t) opts where
-                   (Right origFLOPs) = treeFLOPs t tbl
-                   scoreOpt t t2 = case (treeFLOPs t2 tbl) of
+scoreOptimizations :: ScoreFn -> SymbolTable -> Expr -> [Expr] -> ThrowsError [(Expr, Int)]
+scoreOptimizations fn tbl t opts = mapM (scoreOpt t) opts where
+                   (Right origFLOPs) = fn t tbl
+                   scoreOpt t t2 = case (fn t2 tbl) of
                                    (Right newFLOPs) -> return (t2, newFLOPs - origFLOPs)
                                    (Left err) -> throwError $ BadOptimization t t2 err
                                     
@@ -447,7 +452,7 @@ transposeRules :: Rules
 transposeRules = [distributeTranspose
                  , swapTransposeInverse
                  , cancelTranspose
-                 , groupTranspose
+--                 , symTranspose
                  ]
 
 traceRules :: Rules
@@ -498,6 +503,10 @@ groundSubExprHelper (Let lhs rhs tmp body) v subexpr =
                     then Let lhs (groundSubExprHelper rhs v subexpr) tmp (groundSubExprHelper body v (Leaf lhs))
                     else Let lhs (groundSubExprHelper rhs v subexpr) tmp (groundSubExprHelper body v subexpr)
 groundSubExprHelper e v subexpr = e
+
+------
+recognizeVar :: VarName -> Expr -> SymbolTable -> Expr -> Maybe Expr
+recognizeVar var rhs tbl tree = if rhs==tree then Just (Leaf var) else Nothing
 
 
 -- (A+B)+C <-> A+(B+C)
@@ -902,9 +911,12 @@ distributeTranspose _ (Branch1 MTranspose (Branch2 MProduct l r)) =
 distributeTranspose _ _ = Nothing
 
 -- (B'A') -> (AB)'
+-- (cA)' -> c A' for scalar c
 factorTranspose :: Rule
 factorTranspose _ (Branch2 MProduct (Branch1 MTranspose r) (Branch1 MTranspose l)) =
         Just (Branch1 MTranspose (Branch2 MProduct l r))
+factorTranspose _ (Branch1 MTranspose (Branch2 MScalarProduct a b)) = Just (Branch2 MScalarProduct a (Branch1 MTranspose b))
+factorTranspose _ (Branch2 MSum (Branch1 MTranspose a) (Branch1 MTranspose b)) = Just (Branch1 MTranspose (Branch2 MSum a b))
 factorTranspose _ _ = Nothing
 
 -- (A'B) -> (B'A)'
@@ -933,7 +945,19 @@ groupTranspose tbl (Branch2 MProduct a (Branch1 MTranspose b)) =
                if Symmetric `elem` props
                then Just (Branch1 MTranspose (Branch2 MProduct b a))
                else Nothing
+groupTranspose tbl (Branch2 MProduct (Branch1 MTranspose a) b) = 
+               let Right (Matrix _ _ props) = treeMatrix b tbl in
+               if Symmetric `elem` props
+               then Just (Branch1 MTranspose (Branch2 MProduct b a))
+               else Nothing
 groupTranspose _ _ =  Nothing
+
+symTranspose :: Rule
+symTranspose tbl (Branch1 MTranspose a) = Nothing
+symTranspose tbl a = let Right (Matrix _ _ props) = treeMatrix a tbl in
+                     if Symmetric `elem` props
+                     then Just (Branch1 MTranspose a)
+                     else Nothing
 
 -- A'^-1 -> A^-1'
 swapInverseTranspose :: Rule
