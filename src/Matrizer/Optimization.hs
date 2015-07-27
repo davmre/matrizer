@@ -637,6 +637,11 @@ commuteTrace _ _ = Nothing
 dissolveTrace :: Rule
 dissolveTrace tbl (Branch1 MTrace a) = let Right (Matrix r c _ ) = treeMatrix a tbl in
                                        if (r==1 && c==1) then Just a else Nothing
+-- dissolveTrace tbl c@(Branch2 MProduct a b) = 
+--              let Right (Matrix r1 c1 _ ) = treeMatrix c tbl in
+--                  if (r1 == 1 && c1 == 1)
+--                  then Just (Branch1 MTrace c)
+--                  else Nothing
 dissolveTrace _ _ = Nothing
  
 -- tr(A') <-> tr(A)

@@ -164,10 +164,10 @@ beamSearch2 fn iters beamSize nRewrites tbl beam =
 
 
 llSymbols2 :: SymbolTable
-llSymbols2 = Map.fromList [("X", Matrix 100 100 []), ("A", Matrix 100 100 []),("B", Matrix 100 100 [])]
+llSymbols2 = Map.fromList [("K", Matrix 100 100 []), ("y", Matrix 100 1 [])]
 
 -- llexpr_trivial = (Branch1 MTrace (Branch3 MTernaryProduct (Leaf "A")  (Branch1 MTranspose (Leaf "X")) (Leaf "B")))
-llexpr_trivial = (Branch1 MTrace (Branch2 MProduct  (Leaf "X") (Leaf "X")))
+llexpr_trivial = (Branch3 MTernaryProduct  (Branch1 MTranspose (Leaf "y")) (Branch1 MInverse (Leaf "K")) (Leaf "y"))
 
 
 differentiate :: SymbolTable -> Expr -> VarName -> Maybe Expr
@@ -180,13 +180,20 @@ differentiate tbl (Branch2 MDiff a b) c = do da <- differentiate tbl a c
 differentiate tbl (Branch2 MScalarProduct (LiteralScalar s) a) c = 
               do da <- differentiate tbl a c
                  return $ (Branch2 MScalarProduct (LiteralScalar s) da)
-differentiate tbl expr c = let dd = reduceDifferential c expr in
-                           if (sum $ depthHeuristic dd) == 0
-                           then let Right (Matrix a b props) = treeMatrix (Branch1 (MDeriv c) expr) tbl in
-                                Just (ZeroLeaf a b)
-                           else do r <- runAstar tbl dd 
-                                   extractDeriv tbl (nvalue r)
+differentiate tbl expr c =  differentiateBySearch tbl expr c
+
+
+differentiateBySearch tbl expr c = 
+          let dd = reduceWithTrace tbl expr c in
+          if (sum $ depthHeuristic dd) == 0
+          then let Right (Matrix a b props) = treeMatrix (Branch1 (MDeriv c) expr) tbl in
+               Just (ZeroLeaf a b)
+               else do r <- runAstar tbl dd
+                       extractDeriv tbl (nvalue r)
                            
+reduceWithTrace tbl expr c = let d = reduceDifferential c expr 
+                                 Right (Matrix d1 d2 dprops) = treeMatrix d tbl in
+                                 if (d1==1 && d2==1) then (Branch1 MTrace d) else d
 
 
 
