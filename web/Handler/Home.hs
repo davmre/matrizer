@@ -14,6 +14,7 @@ data Example = Example
 examples = [ Example "gaussianlik" "Gaussian log-density" $(readTest "gaussian.mtr")
            , Example "normaleqns" "Normal equations" $(readTest "normaleqns.mtr")
            , Example "wmslemma" "Matrix inversion lemma" $(readTest "matrix_inv_lemma1.mtr")
+           , Example "deriv" "Calculus (super-alpha)" $(readTest "test_deriv.mtr")
             ]
 
 getHomeR :: Handler Html

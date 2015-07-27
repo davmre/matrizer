@@ -1,0 +1,13 @@
+# Matrix calculus example (linear regression with squared loss)
+
+# variable declarations
+X: n x m
+y: n x 1
+w: m x 1
+
+# dimension estimates
+n ~ 100
+m ~ 2
+
+# expression to be optimized
+r = deriv( (X w - y)'(X w - y), w);
