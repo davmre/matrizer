@@ -28,8 +28,6 @@
       <div #error>
       <div #loadingparse><b><font color=red>Parsing expression...</font></b>
       <div #parseresult>
-        <p>Parsed as symbol table:
-        <pre #symtable>
         <p>Naive AST:
         <pre #naiveast>
         <p>Naive computation requires 

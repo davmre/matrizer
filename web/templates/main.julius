@@ -13,7 +13,6 @@ $(function(){
             data: $("#matrizerPrgm").serialize(),
             success: function(data) {
 	        $("#loadingparse").hide();
-                $("#symtable").html(data.symboltable);
                 $("#naiveast").html(data.prgm);
                 $("#nflops").text(''+data.flops);
 	        $("#parseresult").show();
@@ -72,9 +71,9 @@ $(function(){
 
    var timeoutId = 0;
    $('#optimize').mousedown(function() {
-       timeoutId = setTimeout(function () {$("#advancedOptions").show();}, 1000);
-    })
-       
+       timeoutId = setTimeout(function () {$("#advancedOptions").show();}, 1000)
+    }).bind('mouseup', function() {
+       clearTimeout(timeoutId);});
 });
 
 
