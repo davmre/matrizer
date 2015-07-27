@@ -37,9 +37,13 @@ postOptimizeR =
              case stuff of
                   Nothing -> sendResponseStatus status500 $ object [("error", String $ pack $ "optimization timed out after 10 seconds.")]
                   Just (Left err) -> sendResponseStatus status400 $ object [("error", String $ pack $ show err)]
-                  Just (Right (tree, flops)) -> return $ object [("prgm", String $ pack $ show tree), 
-                                                          ("python", String $ pack $ generateNumpy tree),
-                                                          ("matlab", String $ pack $ generateMatlab tree),
-                                                          ("flops", Number $ fromIntegral flops), 
-							  ("exectime", Number $ fromFloatDigits execTime)]
+                  Just (Right (tree, ctree, optTree, flops, optFlops)) -> return $ \
+                       object [("prgm", String $ pack $ show optTree), 
+                               ("concrete", String $ pack $ show ctree),
+                               ("needsconcrete", Bool $ ctree /= tree),
+                               ("python", String $ pack $ generateNumpy optTree),
+                               ("matlab", String $ pack $ generateMatlab optTree),
+                               ("cflops", Number $ fromIntegral flops), 
+                               ("optFlops", Number $ fromIntegral optFlops), 
+			       ("exectime", Number $ fromFloatDigits execTime)]
 

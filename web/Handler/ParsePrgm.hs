@@ -11,5 +11,7 @@ postParsePrgmR =
 	     $(logOther "Submission") $ "processing text: \n" ++ postedText ++ "\n"
              case doParse (unpack postedText) of
                   Left err -> sendResponseStatus status400 $ object [("error", String $ pack $ show err)]
-                  Right (tbl, tree, flops) -> return $ object [("symboltable", String $ pack $ show tbl), ("prgm", String $ pack $ show tree), ("flops", Number $ fromIntegral flops)]
+                  Right (tbl, tree, flops) -> return $ object [("symboltable", String $ pack $ show tbl), ("prgm", String $ pack $ show tree), ("flops", String $ pack $ showFLOPs flops )]
+                  where showFLOPs (Just f) = show f
+                        showFLOPs Nothing = "undefined"
 

@@ -26,7 +26,7 @@ runFileDebug :: String -> IO ()
 runFileDebug infile = do inp <- readFile infile
                          case doParse inp of 
                            (Left err) -> putStrLn (show err)
-                           (Right (tbl, prgm)) -> runDebug tbl prgm                  
+                           (Right (tbl, prgm, mflops)) -> runDebug tbl prgm                  
 
                      
                                            

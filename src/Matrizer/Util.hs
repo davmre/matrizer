@@ -24,11 +24,13 @@ fakeSymbols = Map.fromList [("A", Matrix 1000 1000 []), ("B", Matrix 1000 1000 [
 fakeTree :: Expr
 fakeTree = Branch2 MProduct (Branch2 MProduct (Leaf "A") (Leaf "B") ) (Leaf "x")
 
-doParse :: String -> ThrowsError (SymbolTable, Expr)
+doParse :: String -> ThrowsError (SymbolTable, Expr, Maybe Int)
 doParse inp = do (tbl, tree) <- readInput inp
                  prgm <- preprocess tree tbl
                  matr <- typeCheck prgm tbl
-                 return $ (tbl, prgm)
+                 case treeFLOPs prgm tbl of
+                      (Right flops) -> return $ (tbl, prgm, Just flops)
+                      (Left err) -> return $ (tbl, prgm, Nothing)
 
 showBeam [] = ""
 showBeam ((expr, n):beam) = "**** " ++ (show n) ++ "\n" ++ show expr ++ "\n" ++ (showBeam beam)
@@ -40,13 +42,13 @@ runDebug tbl prgm = let beams = beamSearchDebug treeFLOPs 5 20 4 tbl [(prgm, 0)]
                     (Right bbeams) -> void $ mapM writeBeam (zip [1..(length bbeams)] bbeams)
                        where writeBeam (n, beam) = writeFile ("beam" ++ show n) (showBeam beam)
 
-doOptimize :: String -> Int -> Int -> Int -> ThrowsError (Expr, Int)
+doOptimize :: String -> Int -> Int -> Int -> ThrowsError (Expr, Expr, Expr, Int, Int)
 doOptimize prgm iters beamSize nRewrites = 
-           do (tbl, tree) <- doParse prgm
+           do (tbl, tree, mflops) <- doParse prgm
               ctree  <- makeConcrete tbl tree
               flops <- treeFLOPs ctree tbl
               (optTree, dflops) <- beamSearchWrapper treeFLOPs iters beamSize nRewrites tbl ctree
-              return $ (optTree, (flops+dflops))
+              return $ (tree, ctree, optTree, flops, (flops+dflops))
 
 dumpInfo :: SymbolTable -> Expr -> ThrowsError String
 dumpInfo tbl raw_prgm = do prgm <- preprocess raw_prgm tbl
@@ -73,5 +75,5 @@ optimizeStr inp =  case readInput inp of
 
 parseFile :: String -> IO (SymbolTable, Expr)
 parseFile fname = do contents <- readFile fname
-                     let Right (tbl, tree) = doParse contents
+                     let Right (tbl, tree, mflops) = doParse contents
                      return $ (tbl, tree)

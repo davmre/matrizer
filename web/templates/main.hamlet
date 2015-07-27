@@ -35,6 +35,11 @@
            \FLOPs. 
       <div #loadingopt><b><font color=red>Optimizing, please wait...</font></b>
       <div #opterror>
+      <div #concreteresult>
+        <p>Transformed to concrete expression requiring 
+           <span #cflops> 
+           \FLOPs:
+        <pre #concreteast>
       <div #optimizeresult>
         <p>Result requires 
            <span #oflops>

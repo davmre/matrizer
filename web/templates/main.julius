@@ -3,6 +3,7 @@ $(function(){
         $("#error").hide();
         $("#opterror").hide();
         $("#parseresult").hide();
+        $("#concreteresult").hide();
         $("#optimizeresult").hide();
 	$("#loadingparse").show();
 	$("#loadingopt").show();
@@ -34,10 +35,15 @@ $(function(){
             data: $("#matrizerPrgm").serialize(),
             success: function(data) {
 	        $("#loadingopt").html("Optimization completed in " + (data.exectime).toFixed(3) + " seconds.")
+                $("#concreteast").html(data.concrete);
                 $("#optast").html(data.prgm);
                 $("#numpy").html(data.python);
                 $("#matlab").html(data.matlab);
-                $("#oflops").text(''+data.flops);
+                $("#cflops").text(''+data.cflops);
+                $("#oflops").text(''+data.optFlops);
+                if (data.needsconcrete) {
+		   $("#concreteresult").show();
+                }
 	        $("#optimizeresult").show();
             },
             error: function(xhr, status, error) {
