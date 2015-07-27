@@ -1,0 +1,7 @@
+A: n x m
+B: m x n
+
+n ~ 100
+m ~ 99
+
+r = det(A B)

@@ -678,22 +678,29 @@ factorDet tbl (Branch1 MDet (Branch2 MProduct a b)) =
               if (l1==r1) then Just (Branch2 MScalarProduct (Branch1 MDet a) (Branch1 MDet b))
               else Nothing
 factorDet tbl (Branch2 MScalarProduct (Branch1 MDet a) (Branch1 MDet b)) = 
-          let Right (Matrix l1 r1 _) = treeMatrix a tbl in
-          let Right (Matrix l2 r2 _) = treeMatrix b tbl in
+          let Right (Matrix l1 r1 _) = treeMatrix a tbl
+              Right (Matrix l2 r2 _) = treeMatrix b tbl in
           if (r1 == l2) then Just (Branch1 MDet (Branch2 MProduct a b)) 
           else Nothing
 factorDet tbl (Branch2 MProduct (Branch1 MDet a) (Branch1 MDet b)) = 
-          let Right (Matrix l1 r1 _) = treeMatrix a tbl in
-          let Right (Matrix l2 r2 _) = treeMatrix b tbl in
+          let Right (Matrix l1 r1 _) = treeMatrix a tbl
+              Right (Matrix l2 r2 _) = treeMatrix b tbl in
           if (r1 == l2) then Just (Branch1 MDet (Branch2 MProduct a b)) 
           else Nothing
 factorDet _ _ = Nothing
 
 -- det(A') = det(A)
 -- det(A^-1) = 1/det(A)
+-- det(C) = 0 if C is rank-deficient 
 detProps :: Rule
 detProps _ (Branch1 MDet (Branch1 MTranspose a)) = Just (Branch1 MDet a)
 detProps _ (Branch1 MDet (Branch1 MInverse a)) = Just (Branch1 (MElementWise MReciprocal) (Branch1 MDet a))
+detProps tbl (Branch1 MDet (Branch2 MProduct a b)) = 
+          let Right (Matrix l1 r1 _) = treeMatrix a tbl
+              Right (Matrix l2 r2 _) = treeMatrix b tbl in
+          if (r1 < l1 && l2 < r2) 
+          then Just (LiteralScalar 0.0)
+          else Nothing
 -- todo: add other properties
 detProps _ _ = Nothing
 
