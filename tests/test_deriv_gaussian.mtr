@@ -1,0 +1,11 @@
+# Matrix calculus example (Gaussian density)
+
+# variable declarations
+K: n x n posdef
+y: n x 1
+
+# dimension estimates
+n ~ 100
+
+# expression to be optimized
+r = deriv( log(det(K)) + y' K^-1 y, K);
