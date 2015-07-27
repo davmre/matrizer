@@ -8,7 +8,7 @@ import qualified Data.Map as Map
 import Control.Monad.Error
 import Matrizer.MTypes
 import Matrizer.Optimization
--- import Matrizer.Analysis
+import Matrizer.Analysis
 import Matrizer.Search
 
 llexpr1 = (Branch3 MTernaryProduct (Branch1 MTranspose (Leaf "w")) (Branch2 MProduct (Branch1 MTranspose (Leaf "X")) (Leaf "X") ) (Leaf "w"))
@@ -149,10 +149,25 @@ beamSearch2 fn iters beamSize nRewrites tbl beam =
 
 llexpr_trivial = (Branch1 MTranspose (Branch2 MProduct (Branch1 MTranspose (Leaf "w")) (Branch1 MTranspose (Leaf "X")) ))
 
+differentiate :: SymbolTable -> Expr -> VarName -> Maybe Expr
+differentiate tbl (Branch2 MSum a b) c = do da <- differentiate tbl a c
+                                            db <- differentiate tbl b c
+                                            return $ (Branch2 MSum da db)
+differentiate tbl (Branch2 MDiff a b) c = do da <- differentiate tbl a c
+                                             db <- differentiate tbl b c
+                                             return $ (Branch2 MDiff da db)
+differentiate tbl (Branch2 MScalarProduct (LiteralScalar s) a) c = 
+              do da <- differentiate tbl a c
+                 return $ (Branch2 MScalarProduct (LiteralScalar s) da)
+differentiate tbl expr c = let dd = reduceDifferential c expr in
+                           if (sum $ depthHeuristic dd) == 0
+                           then let Right (Matrix a b props) = treeMatrix (Branch1 (MDeriv c) expr) tbl in
+                                Just (ZeroLeaf a b)
+                           else do r <- runAstar tbl dd 
+                                   extractDeriv tbl (nvalue r)
+                           
 
-differentiate tbl expr c = let dd = reduceDifferential c expr
-                               Just r = runAstar tbl dd in
-                           extractDeriv tbl (nvalue r)
+
 
 -- collectDifferential tbl v Expr -> Maybe Expr
 -- collectDifferential tbl v (Branch1 MDifferential (Leaf a)) = 
