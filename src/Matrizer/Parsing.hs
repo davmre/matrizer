@@ -44,11 +44,10 @@ TokenParser{ parens = m_parens
 -- Expression Parser
 ----------------------------------------------------------------
 
+
 table :: OperatorTable String u Identity Expr
 table = [ [Prefix (m_reservedOp "tr" >> return (Branch1 MTrace))] 
         , [Prefix (m_reservedOp "det" >> return (Branch1 MDet))] 
-        , [Prefix (m_reservedOp "deriv_X" >> return (Branch1 (MDeriv "X")))] 
-        , [Prefix (m_reservedOp "deriv_w" >> return (Branch1 (MDeriv "w")))] 
         , [Prefix (m_reservedOp "sum" >> return (Branch1 MEntrySum))] 
         , [Prefix (m_reservedOp "diag" >> return (Branch1 MDiagMV))] -- guess which diag is meant and fix in preprocessing analysis 
         , [Prefix (m_reservedOp "exp" >> return (Branch1 (MElementWise MExp)))] 
@@ -77,9 +76,17 @@ mfloat = fmap rd $ (++) <$> minteger <*> decimal
                decimal = option "" $ (:) <$> char '.' <*> number
 
 term :: Parser Expr
-term = m_parens exprparser <|> matrix <|> scalar
+term = deriv <|> m_parens exprparser <|> matrix <|> scalar 
        where matrix = m_identifier >>= return . Leaf
              scalar = mfloat >>= return . LiteralScalar
+
+deriv = do m_reservedOp "deriv("
+           expr1 <- exprparser
+           char ','
+           linespaces
+           x <- m_identifier
+           char ')'
+           return (Branch1 (MDeriv x) expr1)
 
 exprparser :: Parser Expr
 exprparser = buildExpressionParser table term <?> "expression"

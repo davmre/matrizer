@@ -63,7 +63,11 @@ reduceDifferential v (Branch1 MTrace a) =
                    case d of
                    (ZeroLeaf _ _) -> (ZeroLeaf 1 1)                           
                    _ -> Branch1 MTrace d
-reduceDifferential v (Branch1 MInverse a) = (Branch3 MTernaryProduct (Branch1 MInverse a) (reduceDifferential v a) (Branch1 MInverse a))
+reduceDifferential v (Branch1 MInverse a) = 
+                   let d = (reduceDifferential v a) in
+                   case d of
+                   (ZeroLeaf _ _) -> (ZeroLeaf 1 1)
+                   _ -> (Branch3 MTernaryProduct (Branch1 MInverse a) d (Branch1 MInverse a))
 reduceDifferential v (Branch1 MDet a) = 
                    let d = (reduceDifferential v a) in
                    case d of
@@ -85,7 +89,7 @@ depthHeuristic (Leaf _) = []
 depthHeuristic (IdentityLeaf _) = []
 depthHeuristic (ZeroLeaf _ _) = []
 depthHeuristic (LiteralScalar _) = []
-depthHeuristic (Branch1 MDifferential _) = [0]
+depthHeuristic (Branch1 MDifferential _) = [1]
 depthHeuristic (Branch1 _ a) = incrList $ depthHeuristic a
 depthHeuristic (Branch2 _ a b) = let l1 = depthHeuristic a
                                      l2 = depthHeuristic b in
@@ -116,9 +120,10 @@ tdh tbl e = let Right v = totalDepthHeuristic e tbl in
 astarSucc tbl v = let Right moves = rewriteMoves totalDepthHeuristic tbl v in
                       [(expr, 1) | (expr, c) <- moves]
 
---goalCheck tbl (Branch1 MTrace (MProduct a (Branch1 MDifferential _))) = (sum $ depthHeuristic a) == 0
---goalCheck tbl (Branch1 MTrace (Branch3 MTernaryProduct a b (Branch1 MDifferential _)) = (sum $ depthHeuristic (Branch2 MProduct a b))) == 0
 extractDeriv :: SymbolTable ->  Expr -> Maybe Expr
+extractDeriv tbl (Branch1 MDifferential k) = 
+             let Right (Matrix r c _) = treeMatrix k tbl in 
+             Just (IdentityLeaf r)
 extractDeriv tbl (Branch2 MProduct a (Branch1 MDifferential _)) = if (sum $ depthHeuristic a) == 0
                                                                   then Just a
                                                                   else Nothing
@@ -131,6 +136,18 @@ extractDeriv tbl (Branch2 MScalarProduct a (Branch1 MDifferential _)) =
              if (sum $ depthHeuristic a) == 0
              then Just a
              else Nothing
+extractDeriv tbl (Branch1 MTrace (Branch2 MProduct a (Branch1 MDifferential _))) = 
+             if (sum $ depthHeuristic a) == 0
+             then case a of
+             (Branch1 MTranspose ta) -> Just ta
+             _ -> Just (Branch1 MTranspose a)
+             else Nothing
+extractDeriv tbl (Branch1 MTrace (Branch3 MTernaryProduct a b (Branch1 MDifferential _))) = 
+             let candidate = (Branch2 MProduct a b) in
+             if (sum $ depthHeuristic candidate) == 0
+             then Just (Branch1 MTranspose candidate)
+             else Nothing
+
 extractDeriv tbl _ = Nothing
 
 goalCheck tbl expr = case extractDeriv tbl expr of
@@ -146,8 +163,12 @@ beamSearch2 fn iters beamSize nRewrites tbl beam =
                     beamSearch2 fn (iters-1) beamSize nRewrites tbl newBeam
 
 
+llSymbols2 :: SymbolTable
+llSymbols2 = Map.fromList [("X", Matrix 100 100 []), ("A", Matrix 100 100 []),("B", Matrix 100 100 [])]
 
-llexpr_trivial = (Branch1 MTranspose (Branch2 MProduct (Branch1 MTranspose (Leaf "w")) (Branch1 MTranspose (Leaf "X")) ))
+-- llexpr_trivial = (Branch1 MTrace (Branch3 MTernaryProduct (Leaf "A")  (Branch1 MTranspose (Leaf "X")) (Leaf "B")))
+llexpr_trivial = (Branch1 MTrace (Branch2 MProduct  (Leaf "X") (Leaf "X")))
+
 
 differentiate :: SymbolTable -> Expr -> VarName -> Maybe Expr
 differentiate tbl (Branch2 MSum a b) c = do da <- differentiate tbl a c
