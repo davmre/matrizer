@@ -68,7 +68,8 @@ reduceDifferential v (Branch1 MInverse a) =
                    let d = (reduceDifferential v a) in
                    case d of
                    (ZeroLeaf _ _) -> (ZeroLeaf 1 1)
-                   _ -> (Branch2 MScalarProduct (LiteralScalar (-1)) (Branch3 MTernaryProduct (Branch1 MInverse a) d (Branch1 MInverse a)))
+                   _ -> (Branch3 MTernaryProduct (Branch2 MScalarProduct (LiteralScalar (-1)) (Branch1 MInverse a)) d (Branch1 MInverse a))
+--                   _ -> (Branch3 MTernaryProduct (Branch1 MInverse a) d (Branch1 MInverse a))
 reduceDifferential v (Branch1 MDet a) = 
                    let d = (reduceDifferential v a) in
                    case d of
@@ -163,7 +164,7 @@ beamSearch2 fn iters beamSize nRewrites tbl beam =
 
 
 llSymbols2 :: SymbolTable
-llSymbols2 = Map.fromList [("K", Matrix 100 99 []), ("y", Matrix 100 1 [])]
+llSymbols2 = Map.fromList [("K", Matrix 100 100 []), ("y", Matrix 100 1 [])]
 
 -- llexpr_trivial = (Branch1 MTrace (Branch3 MTernaryProduct (Leaf "A")  (Branch1 MTranspose (Leaf "X")) (Leaf "B")))
 llexpr_trivial = (Branch3 MTernaryProduct  (Branch1 MTranspose (Leaf "y")) (Branch1 MInverse (Leaf "K")) (Leaf "y"))
@@ -205,6 +206,10 @@ d2lite = Branch1 MTrace  (Branch2 MScalarProduct pt (Branch1 MTrace  (Branch2 MP
 d2ll =  Branch1 MTrace  (Branch1 MTrace (Branch2 MScalarProduct (LiteralScalar 2.0) (Branch2 MProduct (Branch1 MInverse pt)  (Branch2 MProduct (Branch1 MTranspose (Branch1 MDifferential (Leaf "K")))  (Leaf "K")  )  )))
 
 d3 = reduceDifferential "K" e1
+
+
+e2 = (Branch2 MSum (Branch1 (MElementWise MLog) (Branch1 MDet (Leaf "K"))) (Branch2 MProduct (Branch2 MProduct (Branch1 MTranspose (Leaf "y")) (Branch1 MInverse (Leaf "K"))) (Leaf "y")))
+d6 = reduceDifferential "K" e2
 
 -- collectDifferential tbl v Expr -> Maybe Expr
 -- collectDifferential tbl v (Branch1 MDifferential (Leaf a)) = 
