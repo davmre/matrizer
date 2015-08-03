@@ -13,6 +13,8 @@ main = do args <- getArgs
           then runTests
           else if (head args) == "genpython"
           then writePythonTests
+          else if (head args) == "equiv"
+          then testEquivFiles $ tail args
           else if (head args) == "debug"
           then runFileDebug $ head $ tail args
           else runFile $ head args
@@ -28,5 +30,10 @@ runFileDebug infile = do inp <- readFile infile
                            (Left err) -> putStrLn (show err)
                            (Right (tbl, prgm, mflops)) -> runDebug tbl prgm                  
 
-                     
-                                           
+testEquivFiles :: [String] -> IO ()
+testEquivFiles files = do inp1 <- readFile (head files)
+                          inp2 <- readFile (head $ tail files)
+                          case equivCheck inp1 inp2 of
+                               (Left err) -> putStrLn (show err)
+                               (Right s) -> putStrLn s
+

@@ -1,0 +1,8 @@
+X: n x n
+A: n x n
+B: n x n
+S: n x n sym
+
+n ~ 100
+
+r = deriv(tr( A (X S X')^-1 B), X)

@@ -7,6 +7,7 @@ import qualified Data.Map as Map
 
 import Control.Monad.Error
 import Matrizer.MTypes
+import Matrizer.RewriteRules
 import Matrizer.Optimization
 import Matrizer.Analysis
 import Matrizer.Search
@@ -67,7 +68,7 @@ reduceDifferential v (Branch1 MInverse a) =
                    let d = (reduceDifferential v a) in
                    case d of
                    (ZeroLeaf _ _) -> (ZeroLeaf 1 1)
-                   _ -> (Branch3 MTernaryProduct (Branch1 MInverse a) d (Branch1 MInverse a))
+                   _ -> (Branch2 MScalarProduct (LiteralScalar (-1)) (Branch3 MTernaryProduct (Branch1 MInverse a) d (Branch1 MInverse a)))
 reduceDifferential v (Branch1 MDet a) = 
                    let d = (reduceDifferential v a) in
                    case d of
@@ -117,7 +118,7 @@ totalDepthHeuristic e _ = Right $ 5 * (sum $ depthHeuristic e) + (treeSize e)
 tdh tbl e = let Right v = totalDepthHeuristic e tbl in 
                 v
 
-astarSucc tbl v = let Right moves = rewriteMoves totalDepthHeuristic tbl v in
+astarSucc tbl v = let Right moves = rewriteMoves totalDepthHeuristic optimizationRules tbl v in
                       [(expr, 1) | (expr, c) <- moves]
 
 extractDeriv :: SymbolTable ->  Expr -> Maybe Expr
@@ -138,14 +139,12 @@ extractDeriv tbl (Branch2 MScalarProduct a (Branch1 MDifferential _)) =
              else Nothing
 extractDeriv tbl (Branch1 MTrace (Branch2 MProduct a (Branch1 MDifferential _))) = 
              if (sum $ depthHeuristic a) == 0
-             then case a of
-             (Branch1 MTranspose ta) -> Just ta
-             _ -> Just (Branch1 MTranspose a)
+             then Just a
              else Nothing
 extractDeriv tbl (Branch1 MTrace (Branch3 MTernaryProduct a b (Branch1 MDifferential _))) = 
              let candidate = (Branch2 MProduct a b) in
              if (sum $ depthHeuristic candidate) == 0
-             then Just (Branch1 MTranspose candidate)
+             then Just candidate
              else Nothing
 
 extractDeriv tbl _ = Nothing
@@ -154,17 +153,17 @@ goalCheck tbl expr = case extractDeriv tbl expr of
                      (Just d) -> True
                      (Nothing) -> False
 
-runAstar tbl expr = astar expr (astarSucc tbl) (goalCheck tbl) (heuristicCost (tdh tbl))
+runAstar tbl expr = astar expr (astarSucc tbl) (goalCheck tbl) (heuristicCost (tdh tbl)) 100
 
 beamSearch2 :: ScoreFn -> Int -> Int -> Int -> SymbolTable -> Beam -> ThrowsError Beam
 beamSearch2 fn 0 _ _ _ beam = return $ beam
 beamSearch2 fn iters beamSize nRewrites tbl beam = 
-                 do newBeam <- beamIter (rewriteMoves fn) beamSize nRewrites tbl beam
+                 do newBeam <- beamIter (rewriteMoves fn optimizationRules) beamSize nRewrites tbl beam
                     beamSearch2 fn (iters-1) beamSize nRewrites tbl newBeam
 
 
 llSymbols2 :: SymbolTable
-llSymbols2 = Map.fromList [("K", Matrix 100 100 []), ("y", Matrix 100 1 [])]
+llSymbols2 = Map.fromList [("K", Matrix 100 99 []), ("y", Matrix 100 1 [])]
 
 -- llexpr_trivial = (Branch1 MTrace (Branch3 MTernaryProduct (Leaf "A")  (Branch1 MTranspose (Leaf "X")) (Leaf "B")))
 llexpr_trivial = (Branch3 MTernaryProduct  (Branch1 MTranspose (Leaf "y")) (Branch1 MInverse (Leaf "K")) (Leaf "y"))
@@ -196,6 +195,16 @@ reduceWithTrace tbl expr c = let d = reduceDifferential c expr
                                  if (d1==1 && d2==1) then (Branch1 MTrace d) else d
 
 
+e1 = (Branch1 MDet (Branch2 MProduct (Branch1 MTranspose (Leaf "K")) (Leaf "K")))
+
+pt = (Branch2 MProduct (Branch1 MTranspose (Leaf "K")) (Leaf "K"))
+d2 = Branch1 MTrace (Branch2 MScalarProduct (LiteralScalar 2.0) (Branch2 MScalarProduct (Branch1 MDet pt) (Branch1 MTrace (Branch2 MProduct (Branch1 MInverse pt) (Branch2 MProduct (Branch1 MTranspose (Leaf "K")) (Branch1 MDifferential (Leaf "K"))) )) ))
+
+d2lite = Branch1 MTrace  (Branch2 MScalarProduct pt (Branch1 MTrace  (Branch2 MProduct (Branch1 MInverse pt) (Branch2 MSum (Branch2 MProduct (Branch1 MTranspose (Branch1 MDifferential (Leaf "K")))  (Leaf "K")  ) (Branch2 MProduct (Branch1 MTranspose (Leaf "K")) (Branch1 MDifferential (Leaf "K"))  ) ))))
+
+d2ll =  Branch1 MTrace  (Branch1 MTrace (Branch2 MScalarProduct (LiteralScalar 2.0) (Branch2 MProduct (Branch1 MInverse pt)  (Branch2 MProduct (Branch1 MTranspose (Branch1 MDifferential (Leaf "K")))  (Leaf "K")  )  )))
+
+d3 = reduceDifferential "K" e1
 
 -- collectDifferential tbl v Expr -> Maybe Expr
 -- collectDifferential tbl v (Branch1 MDifferential (Leaf a)) = 

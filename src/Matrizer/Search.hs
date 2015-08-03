@@ -19,19 +19,20 @@ data SearchNode n c  = SearchNode {nvalue :: n, gcost :: c, nprev :: Maybe (Sear
 -- goalCheck: test whether a state is a goal
 -- cost: fringe ranking fn f(x), given current state x and cost-so-far g(x). for valid A*, this should return f(x) = g(x) + h(x) for some heuristic h(x). For best-first search, just return g(x); for greedy search, just return h(x). 
 -- returns: goal state found, or Nothing if search completes without success.
-astar :: (Ord n, Real c) => n -> (n -> [(n,c)]) -> (n -> Bool) -> ( SearchNode n c -> c ) -> Maybe (SearchNode n c)
-astar start succ goalCheck cost = astarIter (Heap.singleton (0, SearchNode {nvalue=start, gcost=0, nprev=Nothing})) Set.empty succ goalCheck cost
+astar :: (Ord n, Real c) => n -> (n -> [(n,c)]) -> (n -> Bool) -> ( SearchNode n c -> c ) -> c -> Maybe (SearchNode n c)
+astar start succ goalCheck cost maxCost = astarIter (Heap.singleton (0, SearchNode {nvalue=start, gcost=0, nprev=Nothing})) Set.empty succ goalCheck cost maxCost
 
 -- how to structure a*? there is an iterative helper: given the fringe, we pop off an element, run the goal check, compute its successors, check closed set, add to fringe. 
-astarIter :: (Ord n, Real c) => Heap.MinPrioHeap c (SearchNode n c) -> Set.Set n -> (n -> [(n, c)]) -> (n -> Bool) -> (SearchNode n c -> c) -> Maybe (SearchNode n c)
-astarIter fringe closed succ goalCheck cost = 
+astarIter :: (Ord n, Real c) => Heap.MinPrioHeap c (SearchNode n c) -> Set.Set n -> (n -> [(n, c)]) -> (n -> Bool) -> (SearchNode n c -> c) -> c -> Maybe (SearchNode n c)
+astarIter fringe closed succ goalCheck cost maxCost = 
           do ((fcost, current ), diminishedFringe) <- Heap.view fringe
              if goalCheck (nvalue current) then return current
+             else if (gcost current) > maxCost then Nothing
              else let newClosed = Set.insert (nvalue current) closed
                       successors = [ SearchNode {nvalue=s, gcost=(gcost current) + moveCost, nprev=Just current} | (s, moveCost) <- (succ (nvalue current)), Set.notMember s closed ]
                       succCosts = [ (cost sn, sn) | sn <- successors ]
                       newFringe = Heap.union diminishedFringe (Heap.fromList succCosts) in
-                      astarIter newFringe newClosed succ goalCheck cost
+                      astarIter newFringe newClosed succ goalCheck cost maxCost
           
 
 -- convert a heuristic function into an AStar cost function

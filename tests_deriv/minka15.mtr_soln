@@ -1,0 +1,8 @@
+X: n x n
+A: n x n
+B: n x n
+C: n x n
+
+n ~ 100
+
+r = C A X' B + A' C' X' B'

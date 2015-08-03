@@ -1,0 +1,5 @@
+X: n x n
+
+n ~ 100
+
+r = deriv( det(X' X) , X)

@@ -3,7 +3,8 @@ module Matrizer.Util
   doParse,
   doOptimize,
   parseFile,
-  runDebug
+  runDebug,
+  equivCheck
 ) where
 
 import qualified Data.Map as Map
@@ -12,9 +13,11 @@ import qualified Data.Map as Map
 import Matrizer.MTypes
 import Matrizer.Parsing
 import Matrizer.Optimization
+import Matrizer.RewriteRules
 import Matrizer.Analysis
 import Matrizer.Preprocess
 import Matrizer.CodeGen
+import Matrizer.Equivalence
 import Control.Monad
 ---------------------------------------------------------------
 
@@ -36,7 +39,7 @@ showBeam [] = ""
 showBeam ((expr, n):beam) = "**** " ++ (show n) ++ "\n" ++ show expr ++ "\n" ++ (showBeam beam)
 
 runDebug :: SymbolTable -> Expr -> IO ()
-runDebug tbl prgm = let beams = beamSearchDebug treeFLOPs 5 20 4 tbl [(prgm, 0)] in 
+runDebug tbl prgm = let beams = beamSearchDebug treeFLOPs optimizationRules 5 20 4 tbl [(prgm, 0)] in 
                     case beams of 
                     (Left err) -> putStrLn (show err)
                     (Right bbeams) -> void $ mapM writeBeam (zip [1..(length bbeams)] bbeams)
@@ -49,6 +52,19 @@ doOptimize prgm iters beamSize nRewrites =
               flops <- treeFLOPs ctree tbl
               (optTree, dflops) <- beamSearchWrapper treeFLOPs iters beamSize nRewrites tbl ctree
               return $ (tree, ctree, optTree, flops, (flops+dflops))
+
+loadConcrete :: String -> ThrowsError (SymbolTable, Expr)
+loadConcrete str = do (tbl, tree, mflops) <- doParse str
+                      ctree  <- makeConcrete tbl tree
+                      return $ (tbl, ctree)
+
+-- read two files
+-- show what they're both parsed as
+equivCheck :: String -> String -> ThrowsError String
+equivCheck s1 s2 = do  (tbl1, ctree1) <- loadConcrete s1
+                       (tbl2, ctree2) <- loadConcrete s2 
+                       let equiv = testEquivalence tbl1 ctree1 ctree2
+                       return $ "First concrete:\n" ++ (show ctree1) ++ "\nSecond concrete:\n" ++ (show ctree2) ++ "\nequivalence check: " ++ (show equiv)
 
 dumpInfo :: SymbolTable -> Expr -> ThrowsError String
 dumpInfo tbl raw_prgm = do prgm <- preprocess raw_prgm tbl

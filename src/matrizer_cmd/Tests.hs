@@ -6,6 +6,7 @@ import Matrizer.Analysis
 import Matrizer.Preprocess
 import Matrizer.Optimization
 import Matrizer.CodeGen
+import Matrizer.Equivalence
 
 import Control.Monad
 import System.Directory
@@ -43,8 +44,11 @@ extractTests files tests
 runTestFile :: String -> IO ()
 runTestFile fname = do (tbl, test_tree, soln_tree) <- readTest fname
                        case runTest (tbl, test_tree, soln_tree) of
-                            (Right (f1, f2, f3)) -> putStrLn $ fname ++ ": naive " ++ show f1 ++ " target " ++ show f2 ++ " optimized " ++ show f3 ++ (if (f3 < f2) then " WIN!" else if (f3 == f2) then " PASS" else " FAIL*******")
+                            (Right (f1, f2, f3, equiv)) -> putStrLn $ fname ++ ": naive " ++ show f1 ++ " target " ++ show f2 ++ " optimized " ++ show f3 ++ (equivStr equiv) ++ (if (f3 < f2) then " WIN!" else if (f3 == f2) then " PASS" else " FAIL*******")
                             (Left err) -> putStrLn (fname ++ ": " ++ (show err) ++ " ERROR***")
+                    where equivStr (Just True) = ""
+                          equivStr (Just False) = " NOT EQUIVALENT! " 
+                          equivStr Nothing = " COULD NOT DETERMINE EQUIVALENCE! " 
 
 type OptimizerTest = (SymbolTable, Expr, Expr)
 readTest :: String -> IO OptimizerTest
@@ -57,7 +61,7 @@ readTest fname = do test <- readFile (combine testdir fname)
                          (Left test_err, _) -> error (fname ++ ": " ++ show test_err ++ " ERROR***")
                          (_, Left soln_err) -> error (fname ++ ": " ++ show soln_err ++ " ERROR***")
 
-runTest :: OptimizerTest -> ThrowsError (Int, Int, Int)
+runTest :: OptimizerTest -> ThrowsError (Int, Int, Int, Maybe Bool)
 runTest (tbl, t1, t2) = do st1 <- preprocess t1 tbl
                            st2 <- preprocess t2 tbl
                            m1 <- typeCheck st1 tbl
@@ -65,7 +69,7 @@ runTest (tbl, t1, t2) = do st1 <- preprocess t1 tbl
                            naive_flops <- treeFLOPs st1 tbl
                            soln_flops <- treeFLOPs st2 tbl
                            (opt, opt_flops) <- optimize st1 tbl
-                           return $ (naive_flops, soln_flops, naive_flops + opt_flops)
+                           return $ (naive_flops, soln_flops, naive_flops + opt_flops, testEquivalence tbl opt st2)
 
 writePythonTest :: String -> IO ()
 writePythonTest  testname = do

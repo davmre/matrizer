@@ -1,0 +1,7 @@
+X: n x n
+A: n x n
+B: n x n
+
+n ~ 100
+
+r = B A
