@@ -67,6 +67,7 @@ binopProductRules = [assocMult
                     , killIdentity
                     , swapTranspose
                     , distributeMult
+                    , distributeShortcut
                     , literalScalars
                     , commuteScalarProduct
                     , assocScalarProduct
@@ -94,6 +95,7 @@ transposeRules :: Rules
 transposeRules = [distributeTranspose
                  , swapTransposeInverse
                  , cancelTranspose
+                 , autoTranspose
 --                 , symTranspose
                  ]
 
@@ -101,6 +103,7 @@ traceRules :: Rules
 traceRules = [dissolveTrace
               , commuteTrace
               , transposeTrace
+              , autoTransposeTrace
               , linearTrace
               , identityOps
               , traceProduct
@@ -197,6 +200,11 @@ distributeMult _ (Branch2 MScalarProduct l (Branch2 MSum c r)) = Just (Branch2 M
 distributeMult _ (Branch2 MScalarProduct (Branch2 MSum l c) r) = Just (Branch2 MSum (Branch2 MScalarProduct l r) (Branch2 MScalarProduct c r) )
 distributeMult _ _ = Nothing
 
+-- A(BD+CD) = A(B+C)D
+distributeShortcut :: Rule
+distributeShortcut _ (Branch2 MProduct a (Branch2 MSum (Branch2 MProduct b d1) (Branch2 MProduct c d2))) = if d1==d2 then Just (Branch3 MTernaryProduct a (Branch2 MSum b c) d1 ) else Nothing
+distributeShortcut _ _ = Nothing
+
 literalScalars :: Rule
 literalScalars _ (Branch2 MSum (LiteralScalar x) (LiteralScalar y)) = Just (LiteralScalar (x+y))
 literalScalars _ (Branch2 MDiff (LiteralScalar x) (LiteralScalar y)) = Just (LiteralScalar (x-y))
@@ -260,6 +268,13 @@ commuteTrace tbl (Branch1 MTrace (Branch2 MProduct a b)) =
                  if (r1==c2) 
                  then Just (Branch1 MTrace (Branch2 MProduct b a))
                  else Nothing
+-- shortcut to avoid pulling a scalar out of a trace, rotating, then bringing back in...
+commuteTrace tbl (Branch1 MTrace (Branch2 MScalarProduct s (Branch2 MProduct a b))) = 
+             let Right (Matrix r1 c1 _ ) = treeMatrix a tbl
+                 Right (Matrix r2 c2 _ ) = treeMatrix b tbl in
+                 if (r1==c2) 
+                 then Just (Branch1 MTrace (Branch2 MScalarProduct s (Branch2 MProduct b a)))
+                 else Nothing
 commuteTrace tbl (Branch1 MTrace (Branch3 MTernaryProduct a b c)) = 
              let Right (Matrix r1 c1 _ ) = treeMatrix a tbl
                  Right (Matrix r3 c3 _ ) = treeMatrix c tbl in
@@ -284,6 +299,28 @@ transposeTrace :: Rule
 transposeTrace _ (Branch1 MTrace (Branch1 MTranspose a)) = Just (Branch1 MTrace a)
 transposeTrace _ (Branch1 MTrace a) = Just (Branch1 MTrace (Branch1 MTranspose a))
 transposeTrace _ _ = Nothing
+
+autoTransposeTrace _  (Branch1 MTrace a) = Just (Branch1 MTrace (reduceTranspose  (Branch1 MTranspose a)))
+autoTransposeTrace _ _ = Nothing
+
+autoTranspose :: Rule
+autoTranspose _ t@(Branch1 MTranspose a) = Just $ reduceTranspose t
+autoTranspose _ _ = Nothing
+
+
+reduceTranspose :: Expr -> Expr
+reduceTranspose (Branch1 MTranspose (Branch1 MTranspose a)) = reduceTranspose a
+reduceTranspose (Branch1 MTranspose (Branch2 MScalarProduct a b)) = (Branch2 MScalarProduct a (reduceTranspose $ Branch1 MTranspose b))
+reduceTranspose (Branch1 MTranspose (Branch2 MProduct a b)) = (Branch2 MProduct (reduceTranspose $ Branch1 MTranspose b) (reduceTranspose $ Branch1 MTranspose a))
+reduceTranspose (Branch1 MTranspose (Branch2 MHadamardProduct a b)) = (Branch2 MHadamardProduct (reduceTranspose $ Branch1 MTranspose a) (reduceTranspose $ Branch1 MTranspose b))
+reduceTranspose (Branch1 MTranspose (Branch2 MSum a b)) = (Branch2 MSum (reduceTranspose $ Branch1 MTranspose a) (reduceTranspose $ Branch1 MTranspose b))
+reduceTranspose (Branch1 MTranspose (Branch2 MDiff a b)) = (Branch2 MDiff (reduceTranspose $ Branch1 MTranspose a) (reduceTranspose $ Branch1 MTranspose b))
+reduceTranspose (Branch1 MTranspose (Branch3 MTernaryProduct a b c)) = (Branch3 MTernaryProduct (reduceTranspose $ Branch1 MTranspose c) (reduceTranspose $ Branch1 MTranspose b) (reduceTranspose $ Branch1 MTranspose a))
+reduceTranspose (Branch1 MTranspose l@(LiteralScalar c)) = l
+reduceTranspose (Branch1 MTranspose d@(Branch1 MDiagVM v)) = d
+reduceTranspose (Branch1 MTranspose d@(Branch1 MDet m)) = d
+reduceTranspose (Branch1 MTranspose t@(Branch1 MTrace m)) = t
+reduceTranspose e = e
 
 -- tr(A+B) <-> tr(A) + tr (B)
 -- tr(cA) <-> c*tr(A)

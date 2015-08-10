@@ -69,7 +69,7 @@ reduceDifferential v (Branch1 MInverse a) =
                    case d of
                    (ZeroLeaf _ _) -> (ZeroLeaf 1 1)
                    _ -> (Branch3 MTernaryProduct (Branch2 MScalarProduct (LiteralScalar (-1)) (Branch1 MInverse a)) d (Branch1 MInverse a))
---                   _ -> (Branch3 MTernaryProduct (Branch1 MInverse a) d (Branch1 MInverse a))
+                   -- _ -> (Branch3 MTernaryProduct (Branch1 MInverse a) d (Branch1 MInverse a))
 reduceDifferential v (Branch1 MDet a) = 
                    let d = (reduceDifferential v a) in
                    case d of
@@ -93,13 +93,13 @@ depthHeuristic (ZeroLeaf _ _) = []
 depthHeuristic (LiteralScalar _) = []
 depthHeuristic (Branch1 MDifferential _) = [1]
 depthHeuristic (Branch1 _ a) = incrList $ depthHeuristic a
-depthHeuristic (Branch2 _ a b) = let l1 = depthHeuristic a
+depthHeuristic (Branch2 _ a b) = let l1 = depthHeuristic a                                     
                                      l2 = depthHeuristic b in
-                                 (incrList l1) ++ (incrList l2)
+                                      (incrList l1) ++ (incrList l2)
 depthHeuristic (Branch3 _ a b c) = let l1 = depthHeuristic a
                                        l2 = depthHeuristic b
                                        l3 = depthHeuristic c in
-                                   (incrList l1) ++ (incrList l2) ++ (incrList l3)
+                                       (incrList l1) ++ (incrList l2) ++ (incrList l3)
 treeSize :: Expr -> Int
 treeSize (Leaf _) = 1
 treeSize (IdentityLeaf _) = 1
@@ -115,7 +115,10 @@ treeSize (Branch3 _ a b c) = let l1 = treeSize a
                                  l3 = treeSize c in
                                  l1 + l2 + l3
 
-totalDepthHeuristic e _ = Right $ 5 * (sum $ depthHeuristic e) + (treeSize e)
+
+totalDepthHeuristic e _ = Right (5 * (sum $ depthHeuristic e) )
+                          --Right ((sum $ depthHeuristic e)  + ((treeSize e) `quot` 5))
+                          -- Right $ 5 * (sum $ depthHeuristic e) + (treeSize e)
 tdh tbl e = let Right v = totalDepthHeuristic e tbl in 
                 v
 
