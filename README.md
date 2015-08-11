@@ -17,7 +17,7 @@ trusted.
 
 Web Interface
 -----
-Matrizer is available through a web interface at [matrizer.org](http://www.matrizer.org). This is the easiest way to get started; unfortunately there's currently no documentation. 
+Matrizer is available through a web interface at [matrizer.org](http://www.matrizer.org). This is the easiest way to get started. There's currently no documentation, but the examples provide a quick guide to what's possible (for more examples, see the tests/ subdirectory of the source tree). 
 
 The rest of this file describes building the local command-line version, and is mostly of interest to potential developers. 
 
