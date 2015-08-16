@@ -117,7 +117,7 @@ treeSize (Branch3 _ a b c) = let l1 = treeSize a
 
 
 totalDepthHeuristic e _ = Right (5 * (sum $ depthHeuristic e) )
-                          --Right ((sum $ depthHeuristic e)  + ((treeSize e) `quot` 5))
+                          -- Right ((sum $ depthHeuristic e)  + ((treeSize e) `quot` 5))
                           -- Right $ 5 * (sum $ depthHeuristic e) + (treeSize e)
 tdh tbl e = let Right v = totalDepthHeuristic e tbl in 
                 v
@@ -167,7 +167,38 @@ beamSearch2 fn iters beamSize nRewrites tbl beam =
 
 
 llSymbols2 :: SymbolTable
-llSymbols2 = Map.fromList [("K", Matrix 100 100 []), ("y", Matrix 100 1 [])]
+llSymbols2 = Map.fromList [("X", Matrix 100 100 []), ("B", Matrix 100 100 []),("A", Matrix 100 100 []),("S", Matrix 100 100 []),("y", Matrix 100 1 []), ("C", Matrix 100 100 [])]
+
+pp = (Branch3 MTernaryProduct (Leaf "X") (Leaf "S") (Branch1 MTranspose (Leaf "X")))
+ll17 = (Branch1 MTrace (Branch3 MTernaryProduct (Leaf "A") (Branch1 MInverse pp) (Leaf "B")))
+dl17 = reduceDifferential "X" ll17
+
+
+
+dl17_1 = Branch1 MTrace (Branch2 MProduct (Leaf "A") (Branch2 MProduct (Branch3 MTernaryProduct (Leaf "C") (Branch2 MProduct (Branch1 MDifferential (Leaf "X")) (Branch2 MProduct (Leaf "S") (Branch1 MTranspose (Leaf "X")))) (Leaf "C")) (Leaf "B")))
+dl17_2 = Branch1 MTrace (Branch2 MProduct (Leaf "A") (Branch2 MProduct (Branch3 MTernaryProduct (Leaf "C")  (Branch2 MProduct (Leaf "X") (Branch2 MProduct (Leaf "S") (Branch1 MTranspose (Branch1 MDifferential (Leaf "X"))))) (Leaf "C")) (Leaf "B")))
+
+
+
+decompose :: Expr -> [(Float, Expr)]
+decompose (Branch2 MScalarProduct (LiteralScalar c) a) = [(c1*c, d) | (c1, d) <- decompose a]
+decompose (Branch2 MSum a b) = (decompose a) ++ (decompose b)
+decompose (Branch2 MDiff a b) = (decompose a) ++ [(cb * (-1.0), eb) | (cb, eb) <- (decompose b)]
+decompose (Branch2 MProduct a b) = [(ca*cb, (Branch2 MProduct ea eb)) | (ca, ea) <- (decompose a), (cb, eb) <- (decompose b)]
+decompose (Branch3 MTernaryProduct a b c) = [(ca*cb*cc, (Branch3 MTernaryProduct ea eb ec)) | (ca, ea) <- (decompose a), (cb, eb) <- (decompose b), (cc, ec) <- (decompose c)]
+decompose (Branch1 MTrace a) = [(ca, (Branch1 MTrace ea)) | (ca, ea) <- decompose a]
+decompose a = [(1, a)]
+
+
+factoredAstar :: SymbolTable -> Expr -> Maybe Expr
+factoredAstar tbl expr = 
+              let exprs = (decompose expr) in
+              do derivs <- mapM (derivFromAstar tbl) [expr | (f, expr) <- exprs]
+                 let consts = [f | (f, expr) <- exprs ] in
+                     return $ recompose $ zip consts derivs
+   where recompose ((f, expr):[]) = rescale f expr
+         recompose ((f, expr):xs) = (Branch2 MSum (rescale f expr) (recompose xs))
+         rescale f expr = if f == 1 then expr else (Branch2 MScalarProduct (LiteralScalar f) expr)
 
 -- llexpr_trivial = (Branch1 MTrace (Branch3 MTernaryProduct (Leaf "A")  (Branch1 MTranspose (Leaf "X")) (Leaf "B")))
 llexpr_trivial = (Branch3 MTernaryProduct  (Branch1 MTranspose (Leaf "y")) (Branch1 MInverse (Leaf "K")) (Leaf "y"))
@@ -191,8 +222,11 @@ differentiateBySearch tbl expr c =
           if (sum $ depthHeuristic dd) == 0
           then let Right (Matrix a b props) = treeMatrix (Branch1 (MDeriv c) expr) tbl in
                Just (ZeroLeaf a b)
-               else do r <- runAstar tbl dd
-                       extractDeriv tbl (nvalue r)
+               else derivFromAstar tbl expr
+
+derivFromAstar :: SymbolTable -> Expr -> Maybe Expr
+derivFromAstar tbl expr = do r <- runAstar tbl expr
+                             extractDeriv tbl (nvalue r)
                            
 reduceWithTrace tbl expr c = let d = reduceDifferential c expr 
                                  Right (Matrix d1 d2 dprops) = treeMatrix d tbl in
