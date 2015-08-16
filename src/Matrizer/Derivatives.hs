@@ -222,7 +222,7 @@ differentiateBySearch tbl expr c =
           if (sum $ depthHeuristic dd) == 0
           then let Right (Matrix a b props) = treeMatrix (Branch1 (MDeriv c) expr) tbl in
                Just (ZeroLeaf a b)
-               else derivFromAstar tbl expr
+               else factoredAstar tbl dd
 
 derivFromAstar :: SymbolTable -> Expr -> Maybe Expr
 derivFromAstar tbl expr = do r <- runAstar tbl expr
