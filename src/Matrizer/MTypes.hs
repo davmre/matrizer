@@ -18,9 +18,9 @@ data Expr = Leaf VarName
            | Branch2 BinOp Expr Expr
            | Branch3 TernOp Expr Expr Expr
            | Let VarName Expr Bool Expr -- bool flag specifies whether this intermediate variable can be optimized out
-           deriving (Eq, Ord, Show)
+           deriving (Eq, Ord)
 
-data TernOp = MTernaryProduct deriving (Eq, Ord, Show)
+data TernOp = MTernaryProduct deriving (Eq, Ord)
 data BinOp = MProduct
            | MSum
            | MDiff
@@ -30,7 +30,7 @@ data BinOp = MProduct
            | MScalarProduct
            | MHadamardProduct
            | MColProduct
-           deriving (Eq, Ord, Enum, Show)
+           deriving (Eq, Ord, Enum)
 
 data UnOp = MInverse
           | MTranspose
@@ -44,60 +44,60 @@ data UnOp = MInverse
           | MDiagMV -- extract a matrix diagonal as a vector
           | MEntrySum
           | MElementWise ScalarOp
-          deriving (Eq, Ord, Show)
+          deriving (Eq, Ord)
 
 data ScalarOp = MLog
               | MExp -- TODO: support matrix exponentials
               | MReciprocal
-              deriving (Eq, Ord, Enum, Show)
+              deriving (Eq, Ord, Enum)
 
 -- AST pretty printing
 
---instance Show TernOp where
---     show _ = "***"
+instance Show TernOp where
+    show _ = "***"
 
--- instance Show BinOp where
---     show MProduct = "mmul"
---     show MScalarProduct = "smul"
---     show MHadamardProduct = "hmul"
---     show MColProduct = "cmul" -- don't really expect people to use this input syntax 
---                             -- except for internal test cases
---     show MSum = "add"
---     show MDiff = "sub"
---     show MLinSolve = "solve"
---     show MTriSolve = "triSolve"
---     show MCholSolve = "cholSolve"
+instance Show BinOp where
+    show MProduct = "mmul"
+    show MScalarProduct = "smul"
+    show MHadamardProduct = "hmul"
+    show MColProduct = "cmul" -- don't really expect people to use this input syntax 
+                            -- except for internal test cases
+    show MSum = "add"
+    show MDiff = "sub"
+    show MLinSolve = "solve"
+    show MTriSolve = "triSolve"
+    show MCholSolve = "cholSolve"
 
--- instance Show UnOp where
---     show MInverse = "inv"
---     show MTranspose = "transpose"
---     show MChol = "chol"
---     show MTrace = "tr"
---     show (MDeriv v) = "deriv_" ++ v
---     show (MUnresolvedDeriv v) = "unresolved_deriv_" ++ v
---     show MDifferential = "differential"
---     show MDet = "det"
---     show MDiagVM = "toDiag"
---     show MDiagMV = "diag"
---     show MEntrySum = "sum"
---     show (MElementWise sop) = show sop
+instance Show UnOp where
+    show MInverse = "inv"
+    show MTranspose = "transpose"
+    show MChol = "chol"
+    show MTrace = "tr"
+    show (MDeriv v) = "deriv_" ++ v
+    show (MUnresolvedDeriv v) = "unresolved_deriv_" ++ v
+    show MDifferential = "differential"
+    show MDet = "det"
+    show MDiagVM = "toDiag"
+    show MDiagMV = "diag"
+    show MEntrySum = "sum"
+    show (MElementWise sop) = show sop
 
--- instance Show ScalarOp where
---     show MLog = "log"
---     show MExp = "exp"
---     show MReciprocal = "recip"
+instance Show ScalarOp where
+    show MLog = "log"
+    show MExp = "exp"
+    show MReciprocal = "recip"
 
--- instance Show Expr where
---     show (Leaf a) = a
---     show (IdentityLeaf _) = "I"
---     show (ZeroLeaf _ _) = "0"
---     show (LiteralScalar x) = show x
---     show (Branch1 op c) = "(" ++ show op ++ " " ++ show c ++ ")"
---     show (Branch2 op a b) = "(" ++ show op ++ " " ++ show a ++ " "
---          ++ show b ++ ")"
---     show (Branch3 op a b c) = "(" ++ show op ++ " " ++ show a ++ " "
---          ++ show b ++ " " ++ show c ++ ")"
---     show (Let v a tmp b) = "(let (" ++ v ++ " := " ++ show a ++ (if tmp then " #temporary ) "  else ") ") ++ "\n" ++ show b ++ ")"
+instance Show Expr where
+    show (Leaf a) = a
+    show (IdentityLeaf _) = "I"
+    show (ZeroLeaf _ _) = "0"
+    show (LiteralScalar x) = show x
+    show (Branch1 op c) = "(" ++ show op ++ " " ++ show c ++ ")"
+    show (Branch2 op a b) = "(" ++ show op ++ " " ++ show a ++ " "
+         ++ show b ++ ")"
+    show (Branch3 op a b c) = "(" ++ show op ++ " " ++ show a ++ " "
+         ++ show b ++ " " ++ show c ++ ")"
+    show (Let v a tmp b) = "(let (" ++ v ++ " := " ++ show a ++ (if tmp then " #temporary ) "  else ") ") ++ "\n" ++ show b ++ ")"
 
 ------------------------------------------------------------------------
 -- Symbol Table Definition

@@ -116,8 +116,8 @@ treeSize (Branch3 _ a b c) = let l1 = treeSize a
                                  l1 + l2 + l3
 
 
-totalDepthHeuristic e _ = Right (5 * (sum $ depthHeuristic e) )
-                          -- Right ((sum $ depthHeuristic e)  + ((treeSize e) `quot` 5))
+totalDepthHeuristic e _ = -- Right (5 * (sum $ depthHeuristic e) )
+                          Right (2 * (sum $ depthHeuristic e)  + ((treeSize e) `quot` 5))
                           -- Right $ 5 * (sum $ depthHeuristic e) + (treeSize e)
 tdh tbl e = let Right v = totalDepthHeuristic e tbl in 
                 v
