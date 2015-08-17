@@ -3,12 +3,22 @@ module Matrizer.RewriteRules (
  Rules,
  optimizationRules,
  optimizationRulesFull,
+ rotateTraceLeft,
+ rotateTraceRight,
+ productsToList,
+ smartCommonFactor,
+ optimalProduct,
+ triplePartition,
+ commonPrefix
 ) where 
 
 import Data.Maybe
+import Data.Array
 
 import Matrizer.MTypes
 import Matrizer.Analysis
+
+import Debug.Trace
 
 ------------------------------------------------------------------
 -- List of optimizations
@@ -39,12 +49,12 @@ type Rules = [Rule]
 
 optimizationRules :: Rules
 optimizationRules = inverseRules ++ transposeRules ++ binopSumRules ++
-    binopProductRules ++ ternProductRules ++ letExpRules ++ traceRules ++ detRules ++ diagRules ++ entrySumRules ++ hadamardProductRules ++ elementWiseRules
+    binopProductRules ++ ternProductRules ++ letExpRules ++ traceRules ++ detRules ++ diagRules ++ entrySumRules ++ hadamardProductRules ++ elementWiseRules  ++ [smartCommonFactor]
 
 -- moves that are valid and sometimes necessary, but generate many
 -- matches and can slow down inference. 
 expensiveMoves :: Rules
-expensiveMoves = [introduceTranspose]
+expensiveMoves = [introduceTranspose, productRtL, productLtR]
 
 optimizationRulesFull = optimizationRules ++ expensiveMoves
 
@@ -107,6 +117,8 @@ traceRules = [dissolveTrace
               , linearTrace
               , identityOps
               , traceProduct
+              , rotateTraceLeft
+              , rotateTraceRight
               , traceDiag]
 
 detRules :: Rules
@@ -166,6 +178,135 @@ assocMult _ (Branch2 MProduct l (Branch2 MProduct c r)) = Just (Branch2 MProduct
 assocMult _ (Branch2 MScalarProduct (Branch2 MScalarProduct l c) r) = Just (Branch2 MScalarProduct l (Branch2 MScalarProduct c r))
 assocMult _ (Branch2 MScalarProduct l (Branch2 MScalarProduct c r)) = Just (Branch2 MScalarProduct (Branch2 MScalarProduct l c) r)
 assocMult _ _ = Nothing
+
+
+-----------------------------------------------------------------------
+-- 'smart' product rules that collapse an entire chain of products (a*b*c*d*e*....) into a list,
+-- then re-expand that list
+-- TODO: write code for the optimal re-expansion
+
+productsToList :: Expr -> [Expr]
+productsToList (Branch2 MProduct a b) = (productsToList a) ++ (productsToList b)
+productsToList (Branch3 MTernaryProduct a b c) = (productsToList a) ++ (productsToList b) ++ (productsToList c)
+productsToList a = [a]
+
+expandProductLtR :: [Expr] -> Expr
+expandProductLtR (x:[]) = x
+expandProductLtR (x:xs) = (Branch2 MProduct x (expandProductLtR xs))
+
+-- takes a reversed list
+expandProductRtL :: [Expr] -> Expr
+expandProductRtL (x:[]) = x
+expandProductRtL (x:xs) = (Branch2 MProduct (expandProductRtL xs) x)
+
+productLtR :: Rule 
+productLtR _ z@(Branch2 MProduct (Branch2 MProduct _ _) _) = Just $ expandProductLtR $ productsToList z
+productLtR _ z@(Branch2 MProduct _ (Branch2 MProduct _ _)) = Just $ expandProductLtR $ productsToList z
+productLtR _ z@(Branch3 MTernaryProduct _ _ _) = Just $ expandProductLtR $ productsToList z
+productLtR _ _ = Nothing
+
+productRtL :: Rule 
+productRtL _ z@(Branch2 MProduct (Branch2 MProduct _ _) _) = Just $ expandProductRtL $ reverse $ productsToList z
+productRtL _ z@(Branch2 MProduct _ (Branch2 MProduct _ _)) = Just $ expandProductRtL $ reverse $ productsToList z
+productRtL _ z@(Branch3 MTernaryProduct _ _ _) = Just $ expandProductRtL $ reverse $ productsToList z
+productRtL _ _ = Nothing
+
+
+-- flopCost, split, rows, cols
+optimalProductArray :: [(Int, Int)] -> Array (Int, Int) (Int, Int, Int, Int)
+optimalProductArray  sizeList = r
+ where 
+       n = length sizeList
+       (rows, cols) = unzip sizeList
+       r = listArray ((0,0),(n,n))  (map oP (range ((0,0), (n,n))))
+       oP (i, j) = if i==j then (0, i, 0, 0)
+                   else if (j==i+1) then (0, i, rows!!i, cols!!i)
+                   else let costs = [(prodCost (r!(i,k)) (r!(k,j)), k) | k <- [(i+1)..(j-1)]] 
+                            (minCost, k) = minimum costs in
+                        (minCost, k, rows!!i, cols!!(j-1))
+       prodCost (f1, k1, r1, c1) (f2, k2, r2, c2) = f1 + f2 + (r1*c2 * (2*c1-1))
+
+optimalProduct tbl exprList = 
+    case length exprList of
+    1 -> head exprList
+    2 -> (Branch2 MProduct (exprList!!0) (exprList!!1) )
+    _ -> let sizeList = map exprSize exprList
+             r = optimalProductArray sizeList in
+             assembleProduct exprList r 0 (length exprList)
+ where exprSize e = let (Right (Matrix a b _)) = treeMatrix e tbl in
+                        (a, b)
+       assembleProduct exps r i j = if j==i+1 then exps!!i
+                                    else let (flops, k, a, b) =  r!(i,j) in 
+                                         (Branch2 MProduct (assembleProduct exps r i k) 
+                                                           (assembleProduct exps r k j))
+
+
+
+
+
+smartCommonFactor tbl (Branch2 MSum a@(Branch2 MProduct _ _) b@(Branch2 MProduct _ _)) = scfHelperOuter tbl a b
+smartCommonFactor tbl (Branch2 MSum a@(Branch3 MTernaryProduct _ _ _) b@(Branch2 MProduct _ _)) = scfHelperOuter tbl a b
+smartCommonFactor tbl (Branch2 MSum a@(Branch2 MProduct _ _) b@(Branch3 MTernaryProduct _ _ _)) = scfHelperOuter tbl a b
+smartCommonFactor tbl (Branch2 MSum a@(Branch3 MTernaryProduct _ _ _) b@(Branch3 MTernaryProduct _ _ _)) = scfHelperOuter tbl a b
+smartCommonFactor _ _ = Nothing
+
+
+scfHelperOuter tbl a b = 
+          let list1 = productsToList a 
+              list2 = productsToList b in
+           if list1==list2 then Just (Branch2 MScalarProduct (LiteralScalar 2.0) a)
+           else let (ncommon, clist) = (scfHelper tbl list1 list2) in
+                    if ncommon == 0 then Nothing
+                    else Just (optimalProduct tbl clist) 
+
+-- divide two lists into a common prefix, common suffix, and 'cores' that are different.
+-- for example, [1,4,8,2,3] and [1,4,0,3] becomes prefix=[1,4], cores=([8,2], [0]), suffix=[3] 
+triplePartition a b =  let (start, rA, rB) = commonPrefix a b
+                           (rend, rcoreA, rcoreB) = commonPrefix (reverse rA) (reverse rB) 
+                           (end, coreA, coreB) = (reverse rend, reverse rcoreA, reverse rcoreB) in
+                           (start, (coreA, coreB), end)
+commonPrefix (x:xs) (y:ys) = if x==y 
+                                then let (p1, r1, r2) = commonPrefix xs ys in
+                                     ((x:p1), r1, r2)
+                                else ([], (x:xs), (y:ys))
+commonPrefix a []  = ([], a, [])                                    
+commonPrefix [] b  = ([], [], b)
+
+-- we assume the lists are unequal, so at most one of the cores can be empty
+scfHelper tbl list1 list2 =
+                    let (start, (coreA, coreB), end) = triplePartition list1 list2
+                        (cA, cB) = (optProdOrEmpty tbl coreA coreB, optProdOrEmpty tbl coreB coreA) in
+                        (((length start) + (length end)), start ++ [Branch2 MSum  cA  cB] ++ end)
+   where                        
+       optProdOrEmpty tbl [] (b:bs) = let Right (Matrix r1 r2 []) = treeMatrix b tbl in
+                                          (IdentityLeaf r1)
+       optProdOrEmpty tbl a _ = optimalProduct tbl a
+          
+
+rotateTraceLeft :: Rule
+rotateTraceLeft tbl (Branch1 MTrace z@(Branch2 MProduct _ _)) = rtlHelper tbl z
+rotateTraceLeft tbl (Branch1 MTrace z@(Branch3 MTernaryProduct _ _ _)) = rtlHelper tbl z
+rotateTraceLeft _ _ = Nothing
+rtlHelper tbl z = 
+                let x:xs = productsToList z 
+                    rotated = xs ++ [x]
+                    candidate = expandProductRtL $ reverse rotated in
+                    case treeMatrix  candidate tbl of
+                    Right m -> Just (Branch1 MTrace candidate)
+                    Left err -> Nothing
+
+rotateTraceRight :: Rule
+rotateTraceRight tbl (Branch1 MTrace z@(Branch2 MProduct _ _)) = rtrHelper tbl z
+rotateTraceRight tbl (Branch1 MTrace z@(Branch3 MTernaryProduct _ _ _)) = rtrHelper tbl z
+rotateTraceRight _ _ = Nothing
+rtrHelper tbl z = 
+                let x:xs = reverse $ productsToList z 
+                    candidate = expandProductRtL $ (xs ++ [x]) in
+                    case treeMatrix  candidate tbl of
+                    Right m -> Just (Branch1 MTrace candidate)
+                    Left err -> Nothing
+                    
+-------------------------------------------------
 
 -- (AC + BC) -> (A+B)C
 commonFactorRight :: Rule

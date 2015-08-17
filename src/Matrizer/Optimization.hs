@@ -11,6 +11,7 @@ import Control.Monad.Error
 import Matrizer.MTypes
 import Matrizer.Analysis
 import Matrizer.RewriteRules
+import Debug.Trace
 
 ----------------------------------
 
@@ -343,7 +344,7 @@ optimizerTraversal fn tbl rules z@( n@(Branch1 _ _), _) =
 -- the net change in FLOPs
 optimizeAtNode :: ScoreFn -> SymbolTable -> [Rule] -> Expr -> ThrowsError [(Expr, Int)]
 optimizeAtNode fn tbl rules t = let opts = mapMaybeFunc t [f tbl | f <- rules ] in
-                       scoreOptimizations fn tbl t opts
+                                 scoreOptimizations fn tbl t opts
 
 scoreOptimizations :: ScoreFn -> SymbolTable -> Expr -> [Expr] -> ThrowsError [(Expr, Int)]
 scoreOptimizations fn tbl t opts = mapM (scoreOpt t) opts where
@@ -373,3 +374,4 @@ mapMaybeFunc x (f:fs) =
 
 recognizeVar :: VarName -> Expr -> SymbolTable -> Expr -> Maybe Expr
 recognizeVar var rhs tbl tree = if rhs==tree then Just (Leaf var) else Nothing
+

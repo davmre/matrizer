@@ -36,7 +36,7 @@ doParse inp = do (tbl, tree) <- readInput inp
                       (Left err) -> return $ (tbl, prgm, Nothing)
 
 showBeam [] = ""
-showBeam ((expr, n):beam) = "**** " ++ (show n) ++ "\n" ++ show expr ++ "\n" ++ (showBeam beam)
+showBeam ((expr, n):beam) = "**** " ++ (show n) ++ "\n" ++ pprint expr ++ "\n" ++ (showBeam beam)
 
 runDebug :: SymbolTable -> Expr -> IO ()
 runDebug tbl prgm = let beams = beamSearchDebug treeFLOPs optimizationRules 5 20 4 tbl [(prgm, 0)] in 
@@ -64,7 +64,7 @@ equivCheck :: String -> String -> ThrowsError String
 equivCheck s1 s2 = do  (tbl1, ctree1) <- loadConcrete s1
                        (tbl2, ctree2) <- loadConcrete s2 
                        let equiv = testEquivalence tbl1 ctree1 ctree2
-                       return $ "First concrete:\n" ++ (show ctree1) ++ "\nSecond concrete:\n" ++ (show ctree2) ++ "\nequivalence check: " ++ (show equiv)
+                       return $ "First concrete:\n" ++ (pprint ctree1) ++ "\nSecond concrete:\n" ++ (pprint ctree2) ++ "\nequivalence check: " ++ (show equiv)
 
 dumpInfo :: SymbolTable -> Expr -> ThrowsError String
 dumpInfo tbl raw_prgm = do prgm <- preprocess raw_prgm tbl
@@ -73,11 +73,11 @@ dumpInfo tbl raw_prgm = do prgm <- preprocess raw_prgm tbl
                            cmatr <- typeCheck ctree tbl
                            flops <- treeFLOPs ctree tbl
                            (optPrgm, dflops)  <- optimize ctree tbl                           
-                           return $ "Preamble symbol table: " ++ show tbl ++ "\nCode parsed as:\n" ++ show prgm ++ (if (ctree == prgm) then "" else "\nTransformed to concrete expression: " ++ show ctree ++ "\nType comparison: " ++ (show matr) ++ " vs " ++ (show cmatr)) ++ "\nNaive FLOPs required: " ++ show flops ++ "\nNaive code generated:\n" ++ generateNumpy ctree ++ "\n\nOptimized FLOPs required: " ++ show (flops+dflops)  ++"\nOptimized program:\n" ++ show optPrgm ++ "\nOptimized code generated:\n" ++ generateNumpy optPrgm
+                           return $ "Preamble symbol table: " ++ show tbl ++ "\nCode parsed as:\n" ++ pprint prgm ++ (if (ctree == prgm) then "" else "\nTransformed to concrete expression: " ++ pprint ctree ++ "\nType comparison: " ++ (show matr) ++ " vs " ++ (show cmatr)) ++ "\nNaive FLOPs required: " ++ show flops ++ "\nNaive code generated:\n" ++ generateNumpy ctree ++ "\n\nOptimized FLOPs required: " ++ show (flops+dflops)  ++"\nOptimized program:\n" ++ pprint optPrgm ++ "\nOptimized code generated:\n" ++ generateNumpy optPrgm
 
 dumpRaw tbl raw_prgm = do prgm <- preprocess raw_prgm tbl
                           flops <- treeFLOPs prgm tbl      
-                          return $ "Preamble symbol table: " ++ show tbl ++ "\nCode parsed as:\n" ++ show prgm ++ "\nNaive FLOPs required: " ++ show flops ++ "\nNaive code generated:\n" ++ generateNumpy prgm
+                          return $ "Preamble symbol table: " ++ show tbl ++ "\nCode parsed as:\n" ++ pprint prgm ++ "\nNaive FLOPs required: " ++ show flops ++ "\nNaive code generated:\n" ++ generateNumpy prgm
 
 errorStr :: ThrowsError String -> String
 errorStr ts = case ts of 

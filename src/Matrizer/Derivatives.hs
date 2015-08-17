@@ -12,6 +12,8 @@ import Matrizer.Optimization
 import Matrizer.Analysis
 import Matrizer.Search
 
+import Debug.Trace
+
 llexpr1 = (Branch3 MTernaryProduct (Branch1 MTranspose (Leaf "w")) (Branch2 MProduct (Branch1 MTranspose (Leaf "X")) (Leaf "X") ) (Leaf "w"))
 llexpr2 = (Branch2 MScalarProduct (LiteralScalar 2) (Branch2 MProduct (Branch1 MTranspose (Leaf "w")) (Branch2 MProduct (Branch1 MTranspose (Leaf "X")) (Leaf "y"))))
 llexpr3 = (Branch2 MProduct (Branch1 MTranspose (Leaf "y")) (Leaf "y"))
@@ -167,18 +169,15 @@ beamSearch2 fn iters beamSize nRewrites tbl beam =
 
 
 llSymbols2 :: SymbolTable
-llSymbols2 = Map.fromList [("X", Matrix 100 100 []), ("B", Matrix 100 100 []),("A", Matrix 100 100 []),("S", Matrix 100 100 []),("y", Matrix 100 1 []), ("C", Matrix 100 100 [])]
+llSymbols2 = Map.fromList [("X", Matrix 100 60 []), ("B", Matrix 100 100 []),("A", Matrix 100 100 []),("S", Matrix 60 60 []),("y", Matrix 100 1 []), ("C", Matrix 100 100 [])]
 
 pp = (Branch3 MTernaryProduct (Leaf "X") (Leaf "S") (Branch1 MTranspose (Leaf "X")))
 ll17 = (Branch1 MTrace (Branch3 MTernaryProduct (Leaf "A") (Branch1 MInverse pp) (Leaf "B")))
 dl17 = reduceDifferential "X" ll17
 
 
-
-dl17_1 = Branch1 MTrace (Branch2 MProduct (Leaf "A") (Branch2 MProduct (Branch3 MTernaryProduct (Leaf "C") (Branch2 MProduct (Branch1 MDifferential (Leaf "X")) (Branch2 MProduct (Leaf "S") (Branch1 MTranspose (Leaf "X")))) (Leaf "C")) (Leaf "B")))
-dl17_2 = Branch1 MTrace (Branch2 MProduct (Leaf "A") (Branch2 MProduct (Branch3 MTernaryProduct (Leaf "C")  (Branch2 MProduct (Leaf "X") (Branch2 MProduct (Leaf "S") (Branch1 MTranspose (Branch1 MDifferential (Leaf "X"))))) (Leaf "C")) (Leaf "B")))
-
-
+llS = Map.fromList [("X", Matrix 100 2 []), ("w", Matrix 2 1 []),("d", Matrix 2 1 []) ]
+r = (Branch2 MSum (Branch2 MProduct (Branch2 MProduct (Branch2 MProduct (Branch1 MTranspose (Leaf "d")) (Branch1 MTranspose (Leaf "X"))) (Leaf "X")) (Leaf "w")) (Branch2 MProduct (Branch2 MProduct (Branch2 MProduct (Branch1 MTranspose (Leaf "w")) (Branch1 MTranspose (Leaf "X"))) (Leaf "X")) (Leaf "d")))
 
 decompose :: Expr -> [(Float, Expr)]
 decompose (Branch2 MScalarProduct (LiteralScalar c) a) = [(c1*c, d) | (c1, d) <- decompose a]
@@ -214,7 +213,7 @@ differentiate tbl (Branch2 MDiff a b) c = do da <- differentiate tbl a c
 differentiate tbl (Branch2 MScalarProduct (LiteralScalar s) a) c = 
               do da <- differentiate tbl a c
                  return $ (Branch2 MScalarProduct (LiteralScalar s) da)
-differentiate tbl expr c =  differentiateBySearch tbl expr c
+differentiate tbl expr c =   differentiateBySearch tbl expr c
 
 
 differentiateBySearch tbl expr c = 
@@ -227,6 +226,8 @@ differentiateBySearch tbl expr c =
 derivFromAstar :: SymbolTable -> Expr -> Maybe Expr
 derivFromAstar tbl expr = do r <- runAstar tbl expr
                              extractDeriv tbl (nvalue r)
+
+
                            
 reduceWithTrace tbl expr c = let d = reduceDifferential c expr 
                                  Right (Matrix d1 d2 dprops) = treeMatrix d tbl in

@@ -18,9 +18,9 @@ data Expr = Leaf VarName
            | Branch2 BinOp Expr Expr
            | Branch3 TernOp Expr Expr Expr
            | Let VarName Expr Bool Expr -- bool flag specifies whether this intermediate variable can be optimized out
-           deriving (Eq, Ord)
+           deriving (Eq, Ord, Show)
 
-data TernOp = MTernaryProduct deriving (Eq, Ord)
+data TernOp = MTernaryProduct deriving (Eq, Ord, Show)
 data BinOp = MProduct
            | MSum
            | MDiff
@@ -30,7 +30,7 @@ data BinOp = MProduct
            | MScalarProduct
            | MHadamardProduct
            | MColProduct
-           deriving (Eq, Ord, Enum)
+           deriving (Eq, Ord, Enum, Show)
 
 data UnOp = MInverse
           | MTranspose
@@ -44,60 +44,58 @@ data UnOp = MInverse
           | MDiagMV -- extract a matrix diagonal as a vector
           | MEntrySum
           | MElementWise ScalarOp
-          deriving (Eq, Ord)
+          deriving (Eq, Ord, Show)
 
 data ScalarOp = MLog
               | MExp -- TODO: support matrix exponentials
               | MReciprocal
-              deriving (Eq, Ord, Enum)
+              deriving (Eq, Ord, Enum, Show)
 
 -- AST pretty printing
+pprint_ternop MTernaryProduct = "***"
 
-instance Show TernOp where
-    show _ = "***"
-
-instance Show BinOp where
-    show MProduct = "mmul"
-    show MScalarProduct = "smul"
-    show MHadamardProduct = "hmul"
-    show MColProduct = "cmul" -- don't really expect people to use this input syntax 
+pprint_binop MProduct = "mmul"
+pprint_binop MScalarProduct = "smul"
+pprint_binop MHadamardProduct = "hmul"
+pprint_binop MColProduct = "cmul" -- don't really expect people to use this input syntax 
                             -- except for internal test cases
-    show MSum = "add"
-    show MDiff = "sub"
-    show MLinSolve = "solve"
-    show MTriSolve = "triSolve"
-    show MCholSolve = "cholSolve"
+pprint_binop MSum = "add"
+pprint_binop MDiff = "sub"
+pprint_binop MLinSolve = "solve"
+pprint_binop MTriSolve = "triSolve"
+pprint_binop MCholSolve = "cholSolve"
 
-instance Show UnOp where
-    show MInverse = "inv"
-    show MTranspose = "transpose"
-    show MChol = "chol"
-    show MTrace = "tr"
-    show (MDeriv v) = "deriv_" ++ v
-    show (MUnresolvedDeriv v) = "unresolved_deriv_" ++ v
-    show MDifferential = "differential"
-    show MDet = "det"
-    show MDiagVM = "toDiag"
-    show MDiagMV = "diag"
-    show MEntrySum = "sum"
-    show (MElementWise sop) = show sop
 
-instance Show ScalarOp where
-    show MLog = "log"
-    show MExp = "exp"
-    show MReciprocal = "recip"
+pprint_unop MInverse = "inv"
+pprint_unop MTranspose = "transpose"
+pprint_unop MChol = "chol"
+pprint_unop MTrace = "tr"
+pprint_unop (MDeriv v) = "deriv_" ++ v
+pprint_unop (MUnresolvedDeriv v) = "unresolved_deriv_" ++ v
+pprint_unop MDifferential = "differential"
+pprint_unop MDet = "det"
+pprint_unop MDiagVM = "toDiag"
+pprint_unop MDiagMV = "diag"
+pprint_unop MEntrySum = "sum"
+pprint_unop (MElementWise sop) = pprint_scalarop sop
 
-instance Show Expr where
-    show (Leaf a) = a
-    show (IdentityLeaf _) = "I"
-    show (ZeroLeaf _ _) = "0"
-    show (LiteralScalar x) = show x
-    show (Branch1 op c) = "(" ++ show op ++ " " ++ show c ++ ")"
-    show (Branch2 op a b) = "(" ++ show op ++ " " ++ show a ++ " "
-         ++ show b ++ ")"
-    show (Branch3 op a b c) = "(" ++ show op ++ " " ++ show a ++ " "
-         ++ show b ++ " " ++ show c ++ ")"
-    show (Let v a tmp b) = "(let (" ++ v ++ " := " ++ show a ++ (if tmp then " #temporary ) "  else ") ") ++ "\n" ++ show b ++ ")"
+pprint_scalarop MLog = "log"
+pprint_scalarop MExp = "exp"
+pprint_scalarop MReciprocal = "recip"
+
+
+pprint (Leaf a) = a
+pprint (IdentityLeaf _) = "I"
+pprint (ZeroLeaf _ _) = "0"
+pprint (LiteralScalar x) = show x
+pprint (Branch1 op c) = "(" ++ pprint_unop op ++ " " ++ pprint c ++ ")"
+pprint (Branch2 op a b) = "(" ++ pprint_binop op ++ " " ++ pprint a ++ " "
+         ++ pprint b ++ ")"
+pprint (Branch3 op a b c) = "(" ++ pprint_ternop op ++ " " ++ pprint a ++ " "
+         ++ pprint b ++ " " ++ pprint c ++ ")"
+pprint (Let v a tmp b) = "(let (" ++ v ++ " := " ++ pprint a ++ (if tmp then " #temporary ) "  else ") ") ++ "\n" ++ pprint b ++ ")"
+
+
 
 ------------------------------------------------------------------------
 -- Symbol Table Definition
