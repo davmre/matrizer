@@ -21,9 +21,9 @@
         <span style="float: right">
           <input type=submit value=Optimize #optimize>
         <div #advancedOptions>
-          Iterations: <input type=number name=iters value=5 min=1 max=100 step=1 style = "width: 3em">
+          Iterations: <input type=number name=iters value=10 min=1 max=100 step=1 style = "width: 3em">
           Beam size: <input type=number name=beamSize value=20 min=1 step=1 max=10000 style = "width: 5em">
-          Rewrite depth: <input type=number name=nRewrites value=4 min=1 step=1 max=100 style = "width: 3em">
+          Rewrite depth: <input type=number name=nRewrites value=2 min=1 step=1 max=100 style = "width: 3em">
       <p>
       <div #error>
       <div #loadingparse><b><font color=red>Parsing expression...</font></b>

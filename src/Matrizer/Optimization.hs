@@ -102,32 +102,33 @@ recreateZipper _ z = z
 -- Main optimizer logic
 
 optimize :: Expr -> SymbolTable -> ThrowsError (Expr, Int)
-optimize expr tbl = beamSearchWrapper treeFLOPs 5 20 4 tbl expr
+optimize expr tbl = beamSearchWrapper treeFLOPs 10 20 2 tbl expr
 
 
 
 ----------------------------------------------------------------
 type ScoreFn = (Expr -> SymbolTable -> ThrowsError Int)
 beamSearchWrapper fn iters beamSize nRewrites tbl expr = 
-                  do beam <- beamSearch fn optimizationRules iters beamSize nRewrites tbl [(expr, 0)]
+                  do beam <- beamSearch fn optimizationRules iters beamSize nRewrites tbl [(expr, 0)] []
                      return $ head beam
 
 
 -- recursive wrapper function to iterate beam search
 type Beam = [(Expr, Int)]
 
-beamSearch :: ScoreFn -> Rules -> Int -> Int -> Int -> SymbolTable -> Beam -> ThrowsError Beam
-beamSearch fn rules 0 _ _ _ beam = return $ beam
-beamSearch fn rules iters beamSize nRewrites tbl beam = 
-                 do newBeam1 <- beamIter (commonSubexpMoves fn) beamSize 1 tbl beam
-                    newBeam2 <- beamIter (rewriteMoves fn rules) beamSize nRewrites tbl newBeam1
-                    beamSearch fn rules (iters-1) beamSize nRewrites tbl newBeam2
+beamSearch :: ScoreFn -> Rules -> Int -> Int -> Int -> SymbolTable -> Beam -> Beam -> ThrowsError Beam
+beamSearch fn rules 0 _ _ _ beam prevBeam = return $ beam
+beamSearch fn rules iters beamSize nRewrites tbl beam prevBeam = 
+                 do newBeam1 <- beamIter (commonSubexpMoves fn) beamSize 1 tbl beam []
+                    newBeam2 <- beamIter (rewriteMoves fn rules) beamSize nRewrites tbl newBeam1 prevBeam
+                    --beamSearch fn rules (iters-1) beamSize nRewrites tbl (trace ("iter " ++ (show iters) ++ " status " ++ (show $ head newBeam2)) newBeam2) newBeam1
+                    beamSearch fn rules (iters-1) beamSize nRewrites tbl newBeam2 newBeam1
                     
 beamSearchDebug :: ScoreFn -> Rules -> Int -> Int -> Int -> SymbolTable -> Beam -> ThrowsError ([Beam])
 beamSearchDebug fn rules 0 _ _ _ beam = return (beam:[])
 beamSearchDebug fn rules iters beamSize nRewrites tbl beam = 
-                 do newBeam1 <- beamIter (commonSubexpMoves fn) beamSize 1 tbl beam
-                    newBeam2 <- beamIter (rewriteMoves fn rules) beamSize nRewrites tbl newBeam1
+                 do newBeam1 <- beamIter (commonSubexpMoves fn) beamSize 1 tbl beam []
+                    newBeam2 <- beamIter (rewriteMoves fn rules) beamSize nRewrites tbl newBeam1 []
                     beamlog <- beamSearchDebug fn rules (iters-1) beamSize nRewrites tbl newBeam2
                     return $ newBeam1 : newBeam2 : beamlog
            
@@ -135,9 +136,13 @@ beamSearchDebug fn rules iters beamSize nRewrites tbl beam =
 type MoveRewriter = SymbolTable -> Expr -> ThrowsError Beam
 
 -- single iteration of beam search: compute all rewrites and take the best few
-beamIter :: MoveRewriter -> Int -> Int -> SymbolTable -> Beam -> ThrowsError Beam
-beamIter rw beamSize nRewrites tbl oldBeam = do rewrites <- reOptimize nRewrites rw tbl oldBeam
-                                                return $ take beamSize (sortBy (comparing snd) rewrites)
+beamIter :: MoveRewriter -> Int -> Int -> SymbolTable -> Beam -> Beam -> ThrowsError Beam
+beamIter rw beamSize nRewrites tbl oldBeam prevBeam = 
+   let prevExps = [e | (e, i) <- prevBeam]
+       novel = [(e, i) | (e, i) <- oldBeam, not $ elem e prevExps]
+       ignored = [(e, i) | (e, i) <- oldBeam, elem e prevExps] in
+      do rewrites <- reOptimize nRewrites rw tbl novel
+         return $ take beamSize (sortBy (comparing snd) (rewrites ++ ignored))
 
 
 -- for cse, same pattern of generating a list of rewrites and sorting them

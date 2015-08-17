@@ -164,7 +164,7 @@ runAstar tbl expr = astar expr (astarSucc tbl) (goalCheck tbl) (heuristicCost (t
 beamSearch2 :: ScoreFn -> Int -> Int -> Int -> SymbolTable -> Beam -> ThrowsError Beam
 beamSearch2 fn 0 _ _ _ beam = return $ beam
 beamSearch2 fn iters beamSize nRewrites tbl beam = 
-                 do newBeam <- beamIter (rewriteMoves fn optimizationRules) beamSize nRewrites tbl beam
+                 do newBeam <- beamIter (rewriteMoves fn optimizationRules) beamSize nRewrites tbl beam []
                     beamSearch2 fn (iters-1) beamSize nRewrites tbl newBeam
 
 

@@ -1,6 +1,7 @@
 module Matrizer.RewriteRules (
  Rule,
  Rules,
+ baseRules,
  optimizationRules,
  optimizationRulesFull,
  rotateTraceLeft,
@@ -48,8 +49,10 @@ type Rule  =  SymbolTable -> Expr -> Maybe Expr
 type Rules = [Rule]
 
 optimizationRules :: Rules
-optimizationRules = inverseRules ++ transposeRules ++ binopSumRules ++
-    binopProductRules ++ ternProductRules ++ letExpRules ++ traceRules ++ detRules ++ diagRules ++ entrySumRules ++ hadamardProductRules ++ elementWiseRules  ++ [smartCommonFactor]
+baseRules = inverseRules ++ transposeRules ++ binopSumRules ++
+    binopProductRules ++ ternProductRules ++ letExpRules ++ traceRules ++ detRules ++ diagRules ++ entrySumRules ++ hadamardProductRules ++ elementWiseRules
+optimizationRules = baseRules  ++ [optimalProductRule, smartCommonFactor]
+
 
 -- moves that are valid and sometimes necessary, but generate many
 -- matches and can slow down inference. 
@@ -211,6 +214,12 @@ productRtL _ z@(Branch2 MProduct _ (Branch2 MProduct _ _)) = Just $ expandProduc
 productRtL _ z@(Branch3 MTernaryProduct _ _ _) = Just $ expandProductRtL $ reverse $ productsToList z
 productRtL _ _ = Nothing
 
+
+optimalProductRule :: Rule
+optimalProductRule tbl z@(Branch2 MProduct (Branch2 MProduct _ _) _) = Just $ optimalProduct tbl (productsToList z)
+optimalProductRule tbl z@(Branch2 MProduct _ (Branch2 MProduct _ _)) = Just $ optimalProduct tbl (productsToList z)
+optimalProductRule tbl z@(Branch3 MTernaryProduct _ _ _) = Just $ optimalProduct tbl (productsToList z)
+optimalProductRule  _ _ = Nothing
 
 -- flopCost, split, rows, cols
 optimalProductArray :: [(Int, Int)] -> Array (Int, Int) (Int, Int, Int, Int)

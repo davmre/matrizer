@@ -38,7 +38,7 @@ equivGoal e1 e2 = e1==e2
 
 
 astarSucc tbl extraRules v  = 
-     let Right moves = rewriteMoves (\a b -> Right 1) (optimizationRules ++ extraRules) tbl v in
+     let Right moves = rewriteMoves (\a b -> Right 1) (baseRules ++ extraRules) tbl v in
          [(expr, 1) | (expr, c) <- moves]
 
 
