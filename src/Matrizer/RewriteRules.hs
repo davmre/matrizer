@@ -49,7 +49,7 @@ type Rules = [Rule]
 
 optimizationRules :: Rules
 optimizationRules = inverseRules ++ transposeRules ++ binopSumRules ++
-    binopProductRules ++ ternProductRules ++ letExpRules ++ traceRules ++ detRules ++ diagRules ++ entrySumRules ++ hadamardProductRules ++ elementWiseRules  ++ [smartCommonFactor]
+    binopProductRules ++ ternProductRules ++ letExpRules ++ traceRules ++ detRules ++ diagRules ++ entrySumRules ++ hadamardProductRules ++ elementWiseRules  -- ++ [smartCommonFactor]
 
 -- moves that are valid and sometimes necessary, but generate many
 -- matches and can slow down inference. 
