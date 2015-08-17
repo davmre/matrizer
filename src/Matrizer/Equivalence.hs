@@ -38,8 +38,8 @@ equivGoal e1 e2 = e1==e2
 
 
 astarSucc tbl extraRules v  = 
-     let Right moves = rewriteMoves (\a b -> Right 1) (baseRules ++ extraRules) tbl v in
-         [(expr, 1) | (expr, c) <- moves]
+     let Right moves = rewriteMoves (\a b -> Right 1) (baseRules ++ extraRules) tbl (BeamNode v 0 "" Nothing) in
+         [(expr, 1) | (BeamNode expr _ _ _) <- moves]
 
 
 -- return whether two expressions are equivalent, or Nothing if
@@ -68,7 +68,7 @@ testEquivalence tbl e1 e2 =
 -- this allows proving equivalence of expressions that use different names for tmp variables. 
 
 renameTmpRules :: SymbolTable -> Expr -> Rules
-renameTmpRules tbl1 e1 = [renameTmpRule v m | (v, m) <- tmpMatrices tbl1 e1]
+renameTmpRules tbl1 e1 = [("rename tmp " ++ v ++ " -> " ++ (show m), renameTmpRule v m) | (v, m) <- tmpMatrices tbl1 e1]
   where renameTmpRule v (Matrix r1 c1 _) tbl (Let lhs rhs True body) = 
           let Right (Matrix r2 c2 _) = treeMatrix rhs tbl in
               if (r1==r2 && c1==c2) then Just $ Let v rhs True (recursiveRename lhs v body)

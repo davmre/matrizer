@@ -46,104 +46,117 @@ import Debug.Trace
 -- extra arguments that are cluttering everything.
 
 type Rule  =  SymbolTable -> Expr -> Maybe Expr
-type Rules = [Rule]
+type Rules = [(String, Rule)]
 
 optimizationRules :: Rules
 baseRules = inverseRules ++ transposeRules ++ binopSumRules ++
     binopProductRules ++ ternProductRules ++ letExpRules ++ traceRules ++ detRules ++ diagRules ++ entrySumRules ++ hadamardProductRules ++ elementWiseRules
-optimizationRules = baseRules  ++ [optimalProductRule, smartCommonFactor]
+
+optimizationRules = baseRules  ++ [("optimize chain produce", optimalProductRule)
+                  , ("smart common factor", smartCommonFactor)
+                  ]
 
 
 -- moves that are valid and sometimes necessary, but generate many
 -- matches and can slow down inference. 
 expensiveMoves :: Rules
-expensiveMoves = [introduceTranspose, productRtL, productLtR]
+expensiveMoves = [("introduceTranspose", introduceTranspose)
+               , ("productRtL", productRtL)
+               , ("productLtR", productLtR)
+               ]
 
 optimizationRulesFull = optimizationRules ++ expensiveMoves
 
 binopSumRules :: Rules
-binopSumRules = [commonFactorLeft
-                , commonFactorRight
-                , matrixInvLemmaRight
-                , assocSum
-                , commuteSum
-                , dropZeros 
+binopSumRules = [("commonFactorLeft", commonFactorLeft)
+                , ("commonFactorRight", commonFactorRight)
+                , ("matrixInvLemmaRight", matrixInvLemmaRight)
+                , ("assocSum", assocSum)
+                , ("commuteSum", commuteSum)
+                , ("dropZeros ", dropZeros )
                 ]
 
 binopProductRules :: Rules
-binopProductRules = [assocMult
-                    , invToLinsolve
-                    , mergeToTernaryProduct
-                    , factorInverse
-                    , factorTranspose
-                    , mergeInverse
-                    , killIdentity
-                    , swapTranspose
-                    , distributeMult
-                    , distributeShortcut
-                    , literalScalars
-                    , commuteScalarProduct
-                    , assocScalarProduct
-                    , collectTerms
-                    , multDiag
-                    , diffToScalar
+binopProductRules = [ ("assocMult", assocMult)
+                    , ("invToLinsolve", invToLinsolve)
+                    , ("mergeToTernaryProduct", mergeToTernaryProduct)
+                    , ("factorInverse", factorInverse)
+                    , ("factorTranspose", factorTranspose)
+                    , ("mergeInverse", mergeInverse)
+                    , ("killIdentity", killIdentity)
+                    , ("swapTranspose", swapTranspose)
+                    , ("distributeMult", distributeMult)
+                    , ("distributeShortcut", distributeShortcut)
+                    , ("literalScalars", literalScalars)
+                    , ("commuteScalarProduct", commuteScalarProduct)
+                    , ("assocScalarProduct", assocScalarProduct)
+                    , ("collectTerms", collectTerms)
+                    , ("multDiag", multDiag)
+                    , ("diffToScalar", diffToScalar)
                     ]
 
 ternProductRules :: Rules
-ternProductRules = [splitTernaryProductLeftAssoc
-                   , splitTernaryProductRightAssoc
+ternProductRules = [ ("splitTernaryProductLeftAssoc", splitTernaryProductLeftAssoc)
+                   , ("splitTernaryProductRightAssoc", splitTernaryProductRightAssoc)
                    ]
 
 inverseRules :: Rules
-inverseRules = [distributeInverse
-               , swapInverseTranspose
-               , cancelDoubleInverse
-               , matrixInvLemmaLeft
-               , invariantIdentity
-               , invToCholInv
-               , cholSolvetoTri
+inverseRules = [("distributeInverse", distributeInverse)
+               , ("swapInverseTranspose", swapInverseTranspose)
+               , ("cancelDoubleInverse", cancelDoubleInverse)
+               , ("matrixInvLemmaLeft", matrixInvLemmaLeft)
+               , ("invariantIdentity", invariantIdentity)
+               , ("invToCholInv", invToCholInv)
+               , ("cholSolvetoTri", cholSolvetoTri)
                ]
 
 transposeRules :: Rules
-transposeRules = [distributeTranspose
-                 , swapTransposeInverse
-                 , cancelTranspose
-                 , autoTranspose
+transposeRules = [("distributeTranspose", distributeTranspose)
+                 , ("swapTransposeInverse", swapTransposeInverse)
+                 , ("cancelTranspose", cancelTranspose)
+                 , ("autoTranspose", autoTranspose)
 --                 , symTranspose
                  ]
 
 traceRules :: Rules
-traceRules = [dissolveTrace
-              , commuteTrace
-              , transposeTrace
-              , autoTransposeTrace
-              , linearTrace
-              , identityOps
-              , traceProduct
-              , rotateTraceLeft
-              , rotateTraceRight
-              , traceDiag]
+traceRules = [("dissolveTrace", dissolveTrace)
+              , ("commuteTrace", commuteTrace)
+              , ("transposeTrace", transposeTrace)
+              , ("autoTransposeTrace", autoTransposeTrace)
+              , ("linearTrace", linearTrace)
+              , ("identityOps", identityOps)
+              , ("traceProduct", traceProduct)
+              , ("rotateTraceLeft", rotateTraceLeft)
+              , ("rotateTraceRight", rotateTraceRight)
+              , ("traceDiag", traceDiag)
+              ]
 
 detRules :: Rules
-detRules = [factorDet
-            , detProps
-            , logdet]
+detRules = [("factorDet", factorDet)
+            , ("detProps", detProps)
+            , ("logdet]", logdet)
+            ]
 
 diagRules :: Rules
-diagRules = [cancelDiag
-             , invDiag]
+diagRules = [
+               ("cancelDiag", cancelDiag)
+             , ("invDiag", invDiag)
+             ]
 
 entrySumRules :: Rules
-entrySumRules = [entrySumLinear]
+entrySumRules = [("entrySumLinear", entrySumLinear)]
 
 elementWiseRules :: Rules
-elementWiseRules = [elementUnOps]
+elementWiseRules = [("elementUnOps", elementUnOps)]
 
 hadamardProductRules :: Rules
-hadamardProductRules = [hadamardProductAssoc, hadamardProductDist, hadamardProductCommute]
+hadamardProductRules = [("hadamardProductAssoc", hadamardProductAssoc)
+                     , ("hadamardProductDist", hadamardProductDist)
+                     , ("hadamardProductCommute", hadamardProductCommute)
+                     ]
 
 letExpRules :: Rules
-letExpRules = [groundSubExpr]           
+letExpRules = [("groundSubExpr", groundSubExpr)]           
 
 
 groundSubExpr :: Rule

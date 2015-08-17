@@ -101,21 +101,23 @@ recreateZipper _ z = z
 -----------------------------------------------------------------
 -- Main optimizer logic
 
-optimize :: Expr -> SymbolTable -> ThrowsError (Expr, Int)
+optimize :: Expr -> SymbolTable -> ThrowsError BeamNode
 optimize expr tbl = beamSearchWrapper treeFLOPs 10 20 2 tbl expr
 
 
 
 ----------------------------------------------------------------
 type ScoreFn = (Expr -> SymbolTable -> ThrowsError Int)
+
+
+data BeamNode = BeamNode Expr Int String (Maybe BeamNode) deriving (Eq, Show, Ord)
+type Beam = [BeamNode]
+
 beamSearchWrapper fn iters beamSize nRewrites tbl expr = 
-                  do beam <- beamSearch fn optimizationRules iters beamSize nRewrites tbl [(expr, 0)] []
+                  do beam <- beamSearch fn optimizationRules iters beamSize nRewrites tbl [(BeamNode expr 0 "" Nothing)] []
                      return $ head beam
 
-
 -- recursive wrapper function to iterate beam search
-type Beam = [(Expr, Int)]
-
 beamSearch :: ScoreFn -> Rules -> Int -> Int -> Int -> SymbolTable -> Beam -> Beam -> ThrowsError Beam
 beamSearch fn rules 0 _ _ _ beam prevBeam = return $ beam
 beamSearch fn rules iters beamSize nRewrites tbl beam prevBeam = 
@@ -133,17 +135,17 @@ beamSearchDebug fn rules iters beamSize nRewrites tbl beam =
                     return $ newBeam1 : newBeam2 : beamlog
            
 
-type MoveRewriter = SymbolTable -> Expr -> ThrowsError Beam
+type MoveRewriter = SymbolTable -> BeamNode -> ThrowsError Beam
 
 -- single iteration of beam search: compute all rewrites and take the best few
 beamIter :: MoveRewriter -> Int -> Int -> SymbolTable -> Beam -> Beam -> ThrowsError Beam
 beamIter rw beamSize nRewrites tbl oldBeam prevBeam = 
-   let prevExps = [e | (e, i) <- prevBeam]
-       novel = [(e, i) | (e, i) <- oldBeam, not $ elem e prevExps]
-       ignored = [(e, i) | (e, i) <- oldBeam, elem e prevExps] in
+   let prevExps = [e | (BeamNode e i _ _) <- prevBeam]
+       novel = [ BeamNode e i s b | (BeamNode e i s b) <- oldBeam, not $ elem e prevExps]
+       ignored = [BeamNode e i s b | (BeamNode e i s b)  <- oldBeam, elem e prevExps] in
       do rewrites <- reOptimize nRewrites rw tbl novel
-         return $ take beamSize (sortBy (comparing snd) (rewrites ++ ignored))
-
+         return $ take beamSize (sortBy (comparing beamScore) (rewrites ++ ignored))
+   where beamScore (BeamNode _ s _ _) = s
 
 -- for cse, same pattern of generating a list of rewrites and sorting them
 -- 'reoptimize n' takes a symboltable and a list of candidates, and generates a new list
@@ -165,11 +167,10 @@ reOptimize n rw tbl candidates =
 -- global FLOP delta for each rewrite
 reOptimizeOnce :: MoveRewriter -> SymbolTable -> Beam -> ThrowsError Beam
 reOptimizeOnce _ _ [] = return $ []
-reOptimizeOnce rw tbl ((t, score):ts) = do localDeltas <- rw tbl t
-                                           newTs <- reOptimizeOnce rw tbl ts
-                                           let globalDeltas =  [(r, score+ds) | (r, ds) <- localDeltas] in
-                                               return $ globalDeltas ++ newTs
-
+reOptimizeOnce rw tbl (node@(BeamNode _ score _ _):ts) = 
+  do rewrites <- rw tbl node
+     newTs <- reOptimizeOnce rw tbl ts
+     return $ rewrites ++ newTs
 
 
 ----------------------------------------------------------------
@@ -287,20 +288,22 @@ findInsertionPoint deps tbl z@( n@(Let _ _ _ _), _) =
 
 -- High-level function to transform an expression, factoring out a subexpression
 -- as identitified by commonSubExpressions
-factorSubExpression :: ScoreFn -> Expr -> SymbolTable -> (Expr, [Breadcrumbs]) -> ThrowsError (Expr, Int)
-factorSubExpression fn e tbl (subexp, locs) = let tmpVar = chooseTmpVarname e in 
-                                           do factoredOut <- replaceSubExprs e locs tmpVar
-                                              (ntbl, factoredIn) <- insertCommonDef tbl factoredOut tmpVar subexp 
-                                              flops <- fn subexp ntbl 
-                                              let score = (1-(length locs)) * flops + letcost_CONST in
-                                                  return $ (factoredIn, score)
+factorSubExpression :: ScoreFn -> BeamNode -> SymbolTable -> (Expr, [Breadcrumbs]) -> ThrowsError BeamNode
+factorSubExpression fn node@(BeamNode e oldScore _ _) tbl (subexp, locs) = 
+  let tmpVar = chooseTmpVarname e in 
+      do factoredOut <- replaceSubExprs e locs tmpVar
+         (ntbl, factoredIn) <- insertCommonDef tbl factoredOut tmpVar subexp 
+         flops <- fn subexp ntbl 
+         let score = (1-(length locs)) * flops + letcost_CONST in
+             return $ BeamNode factoredIn (oldScore + score) ("factored out " ++ pprint subexp) (Just node)
 
 
 -- Given an expression, return all versions reachable by factoring out a single subexpression
 commonSubexpMoves :: ScoreFn -> MoveRewriter
-commonSubexpMoves fn tbl e = let smap = buildSubexpressionMap MultiMap.empty (e, [])
-                                 subexprs = commonSubExpressions smap in
-                          mapM (factorSubExpression fn e tbl) subexprs
+commonSubexpMoves fn tbl n@(BeamNode e _ _ _) = 
+  let smap = buildSubexpressionMap MultiMap.empty (e, [])
+      subexprs = commonSubExpressions smap in
+      mapM (factorSubExpression fn n tbl) subexprs
                           
 
 
@@ -314,9 +317,12 @@ commonSubexpMoves fn tbl e = let smap = buildSubexpressionMap MultiMap.empty (e,
 -- reconstructTree.
 
 rewriteMoves :: ScoreFn -> Rules -> MoveRewriter
-rewriteMoves fn rules tbl e  = optimizerTraversal fn tbl rules (e, [])
+rewriteMoves fn rules tbl node@(BeamNode e oldScore _ _)  =  
+  do scores <- (optimizerTraversal fn tbl rules (e, []))
+     return $ map toBeam scores
+  where toBeam (e2,s,rule) = BeamNode e2 (oldScore + s) rule (Just node)
 
-optimizerTraversal :: ScoreFn -> SymbolTable -> [Rule] -> MZipper -> ThrowsError [(Expr, Int)]
+optimizerTraversal :: ScoreFn -> SymbolTable -> Rules -> MZipper -> ThrowsError [(Expr, Int, String)]
 optimizerTraversal _ _ _ (Leaf _, _) = return $ []
 optimizerTraversal _ _ _ (ZeroLeaf _ _, _) = return $ []
 optimizerTraversal _ _ _ (IdentityLeaf _, _) = return $ []
@@ -336,7 +342,7 @@ optimizerTraversal fn tbl rules z@( n@(Let v a _ _), _) =
                    do thisNode <- optimizeAtNode fn tbl rules n
                       leftBranch <- goLeft z >>= optimizerTraversal fn tbl rules
                       boundTbl <- tblBind n tbl
-                      rightBranch <- goRight z >>= optimizerTraversal fn boundTbl (recognizeVar v a : rules)
+                      rightBranch <- goRight z >>= optimizerTraversal fn boundTbl (("recognize existing variable " ++ v, recognizeVar v a) : rules)
                       return $ (map (reconstructTreeScore z) thisNode) ++ leftBranch ++ rightBranch
 optimizerTraversal fn tbl rules z@( n@(Branch1 _ _), _) =
                    do thisNode <- optimizeAtNode fn tbl rules n
@@ -346,25 +352,30 @@ optimizerTraversal fn tbl rules z@( n@(Branch1 _ _), _) =
 
 -- Given a tree node, return a list of all transformed nodes that can
 -- be generated by applying optimization rules at that node, along with
--- the net change in FLOPs
-optimizeAtNode :: ScoreFn -> SymbolTable -> [Rule] -> Expr -> ThrowsError [(Expr, Int)]
-optimizeAtNode fn tbl rules t = let opts = mapMaybeFunc t [f tbl | f <- rules ] in
+-- the net change in FLOPs, and the rule applied
+optimizeAtNode :: ScoreFn -> SymbolTable -> Rules -> Expr -> ThrowsError [(Expr, Int, String)]
+optimizeAtNode fn tbl rules t = let opts = mapMaybeFunc t [wwrap rule (f tbl) | (rule, f) <- rules ] in
                                  scoreOptimizations fn tbl t opts
+ 
+wwrap :: String -> (Expr -> Maybe Expr) -> Expr -> Maybe (Expr, String)
+wwrap rule f e = do e1 <- (f e) 
+                    return (e1, rule)
+                                    
 
-scoreOptimizations :: ScoreFn -> SymbolTable -> Expr -> [Expr] -> ThrowsError [(Expr, Int)]
+scoreOptimizations :: ScoreFn -> SymbolTable -> Expr -> [(Expr, String)] -> ThrowsError [(Expr, Int, String)]
 scoreOptimizations fn tbl t opts = mapM (scoreOpt t) opts where
                    (Right origFLOPs) = fn t tbl
-                   scoreOpt t t2 = case (fn t2 tbl) of
-                                   (Right newFLOPs) -> return (t2, newFLOPs - origFLOPs)
-                                   (Left err) -> throwError $ BadOptimization t t2 err
+                   scoreOpt t (t2, rule) = case (fn t2 tbl) of
+                                            (Right newFLOPs) -> return (t2, newFLOPs - origFLOPs, rule)
+                                            (Left err) -> throwError $ BadOptimization t t2 err
                                     
 -- Take a zipper representing a subtree, and a new subtree to replace that subtree.
 -- return a full (rooted) tree with the new subtree in the appropriate place.
 reconstructTree :: MZipper -> Expr -> Expr
 reconstructTree (_, bs) t2 = zipperToTree $ topMost (t2, bs)
 
-reconstructTreeScore:: MZipper -> (Expr, Int) -> (Expr, Int)
-reconstructTreeScore (_, bs) (t2, score) = (zipperToTree $ topMost (t2, bs), score)
+reconstructTreeScore:: MZipper -> (Expr, Int, String) -> (Expr, Int, String)
+reconstructTreeScore (_, bs) (t2, score, rule) = (zipperToTree $ topMost (t2, bs), score, rule)
 
 -- Utility function used by optimizeAtNode: apply a list of functions
 -- to a constant input, silently discarding any element for which f

@@ -68,7 +68,7 @@ runTest (tbl, t1, t2) = do st1 <- preprocess t1 tbl
                            m2 <- typeCheck st2 tbl
                            naive_flops <- treeFLOPs st1 tbl
                            soln_flops <- treeFLOPs st2 tbl
-                           (opt, opt_flops) <- optimize st1 tbl
+                           (BeamNode opt opt_flops _ _) <- optimize st1 tbl
                            return $ (naive_flops, soln_flops, naive_flops + opt_flops, testEquivalence tbl opt st2)
 
 writePythonTest :: String -> IO ()
@@ -76,7 +76,7 @@ writePythonTest  testname = do
                 (tbl, t1, _) <- readTest testname
                 let Right naive = preprocess t1 tbl
                     Right m1 = typeCheck naive tbl
-                    Right (opt, opt_flops) = optimize naive tbl
+                    Right (BeamNode opt opt_flops _ _) = optimize naive tbl
                     tablestr = generateTableNumpy tbl
                     formatTarget v = "'" ++ v ++ "',"
                     targetstr = "targets = [" ++ (unwords (map formatTarget (targets naive))) ++ "]"

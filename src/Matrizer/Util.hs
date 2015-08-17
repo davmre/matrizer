@@ -36,10 +36,10 @@ doParse inp = do (tbl, tree) <- readInput inp
                       (Left err) -> return $ (tbl, prgm, Nothing)
 
 showBeam [] = ""
-showBeam ((expr, n):beam) = "**** " ++ (show n) ++ "\n" ++ pprint expr ++ "\n" ++ (showBeam beam)
+showBeam ((BeamNode expr n _ _):beam) = "**** " ++ (show n) ++ "\n" ++ pprint expr ++ "\n" ++ (showBeam beam)
 
 runDebug :: SymbolTable -> Expr -> IO ()
-runDebug tbl prgm = let beams = beamSearchDebug treeFLOPs optimizationRules 5 20 4 tbl [(prgm, 0)] in 
+runDebug tbl prgm = let beams = beamSearchDebug treeFLOPs optimizationRules 5 20 4 tbl [(BeamNode prgm 0 "init" Nothing)] in 
                     case beams of 
                     (Left err) -> putStrLn (show err)
                     (Right bbeams) -> void $ mapM writeBeam (zip [1..(length bbeams)] bbeams)
@@ -50,7 +50,7 @@ doOptimize prgm iters beamSize nRewrites =
            do (tbl, tree, mflops) <- doParse prgm
               ctree  <- makeConcrete tbl tree
               flops <- treeFLOPs ctree tbl
-              (optTree, dflops) <- beamSearchWrapper treeFLOPs iters beamSize nRewrites tbl ctree
+              (BeamNode optTree dflops _ _) <- beamSearchWrapper treeFLOPs iters beamSize nRewrites tbl ctree
               return $ (tree, ctree, optTree, flops, (flops+dflops))
 
 loadConcrete :: String -> ThrowsError (SymbolTable, Expr)
@@ -72,7 +72,7 @@ dumpInfo tbl raw_prgm = do prgm <- preprocess raw_prgm tbl
                            ctree <- makeConcrete tbl prgm
                            cmatr <- typeCheck ctree tbl
                            flops <- treeFLOPs ctree tbl
-                           (optPrgm, dflops)  <- optimize ctree tbl                           
+                           (BeamNode optPrgm dflops _ _)  <- optimize ctree tbl                           
                            return $ "Preamble symbol table: " ++ show tbl ++ "\nCode parsed as:\n" ++ pprint prgm ++ (if (ctree == prgm) then "" else "\nTransformed to concrete expression: " ++ pprint ctree ++ "\nType comparison: " ++ (show matr) ++ " vs " ++ (show cmatr)) ++ "\nNaive FLOPs required: " ++ show flops ++ "\nNaive code generated:\n" ++ generateNumpy ctree ++ "\n\nOptimized FLOPs required: " ++ show (flops+dflops)  ++"\nOptimized program:\n" ++ pprint optPrgm ++ "\nOptimized code generated:\n" ++ generateNumpy optPrgm
 
 dumpRaw tbl raw_prgm = do prgm <- preprocess raw_prgm tbl
