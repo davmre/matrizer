@@ -4,6 +4,7 @@ module Handler.Optimize where
 import Matrizer.Util
 import Matrizer.Optimization
 import Matrizer.CodeGen
+import Matrizer.MTypes
 import System.CPUTime
 import Import
 import Control.Applicative
@@ -38,8 +39,8 @@ postOptimizeR =
                   Nothing -> sendResponseStatus status500 $ object [("error", String $ pack $ "optimization timed out after 10 seconds.")]
                   Just (Left err) -> sendResponseStatus status400 $ object [("error", String $ pack $ show err)]
                   Just (Right (tree, ctree, optTree, flops, optFlops)) -> return $ \
-                       object [("prgm", String $ pack $ show optTree), 
-                               ("concrete", String $ pack $ show ctree),
+                       object [("prgm", String $ pack $ pprint optTree), 
+                               ("concrete", String $ pack $ pprint ctree),
                                ("needsconcrete", Bool $ ctree /= tree),
                                ("python", String $ pack $ generateNumpy optTree),
                                ("matlab", String $ pack $ generateMatlab optTree),

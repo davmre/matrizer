@@ -49,6 +49,7 @@ type Rule  =  SymbolTable -> Expr -> Maybe Expr
 type Rules = [(String, Rule)]
 
 optimizationRules :: Rules
+
 baseRules = inverseRules ++ transposeRules ++ binopSumRules ++
     binopProductRules ++ ternProductRules ++ letExpRules ++ traceRules ++ detRules ++ diagRules ++ entrySumRules ++ hadamardProductRules ++ elementWiseRules
 
