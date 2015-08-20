@@ -113,6 +113,9 @@ type ScoreFn = (Expr -> SymbolTable -> ThrowsError Int)
 data BeamNode = BeamNode Expr Int String (Maybe BeamNode) deriving (Eq, Show, Ord)
 type Beam = [BeamNode]
 
+-- compare two beamNodes ignoring their histories
+beamNodeEq (BeamNode e1 s1 _ _) (BeamNode e2 s2 _ _) =  (s1 == s2) && (e1==e2)
+
 beamSearchWrapper fn iters beamSize nRewrites tbl expr = 
                   do beam <- beamSearch fn optimizationRules iters beamSize nRewrites tbl [(BeamNode expr 0 "" Nothing)] []
                      return $ head beam
@@ -123,7 +126,6 @@ beamSearch fn rules 0 _ _ _ beam prevBeam = return $ beam
 beamSearch fn rules iters beamSize nRewrites tbl beam prevBeam = 
                  do newBeam1 <- beamIter (commonSubexpMoves fn) beamSize 1 tbl beam []
                     newBeam2 <- beamIter (rewriteMoves fn rules) beamSize nRewrites tbl newBeam1 prevBeam
-                    --beamSearch fn rules (iters-1) beamSize nRewrites tbl (trace ("iter " ++ (show iters) ++ " status " ++ (show $ head newBeam2)) newBeam2) newBeam1
                     beamSearch fn rules (iters-1) beamSize nRewrites tbl newBeam2 newBeam1
                     
 beamSearchDebug :: ScoreFn -> Rules -> Int -> Int -> Int -> SymbolTable -> Beam -> ThrowsError ([Beam])
@@ -154,17 +156,15 @@ beamIter rw beamSize nRewrites tbl oldBeam prevBeam =
 
 
 
-
 -- generate all scored rewrites accessible by applying at most n rewrite rules
 reOptimize :: Int -> MoveRewriter -> SymbolTable -> Beam -> ThrowsError Beam
 reOptimize 0 rw tbl candidates = return $ candidates
 reOptimize n rw tbl candidates = 
            do iter1 <- reOptimizeOnce rw tbl candidates
-              reOptimize (n-1) rw tbl (Set.toList $ Set.fromList (candidates ++ iter1))
+              reOptimize (n-1) rw tbl (nubBy beamNodeEq (candidates ++ iter1)) 
 
 
--- generate all rewrites of the given scored list of expressions, tracking the 
--- global FLOP delta for each rewrite
+-- generate all rewrites of the given scored list of expressions
 reOptimizeOnce :: MoveRewriter -> SymbolTable -> Beam -> ThrowsError Beam
 reOptimizeOnce _ _ [] = return $ []
 reOptimizeOnce rw tbl (node@(BeamNode _ score _ _):ts) = 
