@@ -125,7 +125,7 @@ tdh tbl e = let Right v = totalDepthHeuristic e tbl in
                 v
 
 astarSucc tbl e = let Right moves = rewriteMoves totalDepthHeuristic optimizationRules tbl (BeamNode e 0 "" Nothing) in
-                           [(expr, 1) | (BeamNode expr _ _ _) <- moves]
+                           [(expr, 1, Just d) | (BeamNode expr _ d _) <- moves]
 
 extractDeriv :: SymbolTable ->  Expr -> Maybe Expr
 extractDeriv tbl (Branch1 MDifferential k) = 

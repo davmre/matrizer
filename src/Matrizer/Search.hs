@@ -11,7 +11,7 @@ import Data.Ix
 import qualified Data.Sequence as Seq
 import Debug.Trace
 
-data SearchNode n c  = SearchNode {nvalue :: n, gcost :: c, nprev :: Maybe (SearchNode n c)} deriving (Eq, Show, Ord)
+data SearchNode n c  = SearchNode {nvalue :: n, gcost :: c, nprev :: Maybe (SearchNode n c), move :: Maybe String} deriving (Eq, Show, Ord)
 
 pprint::  (Ord n, Real c, Show c, Show n) => ( SearchNode n c -> c ) -> SearchNode n c -> String
 pprint heuristic sn = let gc = gcost sn
@@ -27,18 +27,18 @@ pprint heuristic sn = let gc = gcost sn
 -- goalCheck: test whether a state is a goal
 -- cost: fringe ranking fn f(x), given current state x and cost-so-far g(x). for valid A*, this should return f(x) = g(x) + h(x) for some heuristic h(x). For best-first search, just return g(x); for greedy search, just return h(x). 
 -- returns: goal state found, or Nothing if search completes without success.
-astar :: (Ord n, Real c, Show c, Show n) => n -> (n -> [(n,c)]) -> (n -> Bool) -> ( SearchNode n c -> c ) -> c -> Maybe (SearchNode n c)
-astar start succ goalCheck cost maxCost = astarIter (Heap.singleton (0, SearchNode {nvalue=start, gcost=0, nprev=Nothing})) Set.empty succ goalCheck cost maxCost
+astar :: (Ord n, Real c, Show c, Show n) => n -> (n -> [(n,c, Maybe String)]) -> (n -> Bool) -> ( SearchNode n c -> c ) -> c -> Maybe (SearchNode n c)
+astar start succ goalCheck cost maxCost = astarIter (Heap.singleton (0, SearchNode {nvalue=start, gcost=0, nprev=Nothing, move=Nothing})) Set.empty succ goalCheck cost maxCost
 
 -- how to structure a*? there is an iterative helper: given the fringe, we pop off an element, run the goal check, compute its successors, check closed set, add to fringe. 
-astarIter :: (Ord n, Real c, Show c, Show n) => Heap.MinPrioHeap c (SearchNode n c) -> Set.Set n -> (n -> [(n, c)]) -> (n -> Bool) -> (SearchNode n c -> c) -> c -> Maybe (SearchNode n c)
+astarIter :: (Ord n, Real c, Show c, Show n) => Heap.MinPrioHeap c (SearchNode n c) -> Set.Set n -> (n -> [(n, c, Maybe String)]) -> (n -> Bool) -> (SearchNode n c -> c) -> c -> Maybe (SearchNode n c)
 astarIter fringe closed succ goalCheck cost maxCost = 
           do ((fcost, current ), diminishedFringe) <- Heap.view fringe
              --if goalCheck (nvalue (trace (pprint cost current) current)) then return current
              if goalCheck (nvalue  current) then return current
              else if (gcost current) > maxCost then Nothing
              else let newClosed = Set.insert (nvalue current) closed
-                      successors = [ SearchNode {nvalue=s, gcost=(gcost current) + moveCost, nprev=Just current} | (s, moveCost) <- (succ (nvalue current)), Set.notMember s closed ]
+                      successors = [ SearchNode {nvalue=s, gcost=(gcost current) + moveCost, nprev=Just current, move=smove} | (s, moveCost, smove) <- (succ (nvalue current)), Set.notMember s closed ]
                       succCosts = [ (cost sn, sn) | sn <- successors ]
                       newFringe = Heap.union diminishedFringe (Heap.fromList succCosts) in
                       astarIter newFringe newClosed succ goalCheck cost maxCost
@@ -61,7 +61,7 @@ allpairs pos = [(p1, p2) | p1 <- pos, p2 <- pos, p1 < p2]
 queensHeuristic pos = sum [ fromEnum (attacks queen1 queen2) | (queen1, queen2) <- allpairs pos ]
 queensGoalCheck pos = (queensHeuristic pos) == 0
 
-queensSucc pos = [(s, 1) | s <- queenSucc [] [] pos]
+queensSucc pos = [(s, 1, Nothing) | s <- queenSucc [] [] pos]
 queenSucc :: [QueenPos] -> QueenPos -> QueenPos -> [QueenPos]
 queenSucc s _ [] = s
 queenSucc s prevQ ((row, col):nextQ) = let otherQ = prevQ ++ nextQ

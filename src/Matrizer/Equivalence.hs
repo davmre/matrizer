@@ -39,7 +39,7 @@ equivGoal e1 e2 = e1==e2
 
 astarSucc tbl extraRules v  = 
      let Right moves = rewriteMoves (\a b -> Right 1) (baseRules ++ extraRules) tbl (BeamNode v 0 "" Nothing) in
-         [(expr, 1) | (BeamNode expr _ _ _) <- moves]
+         [(expr, 1, Just d) | (BeamNode expr _ d _) <- moves]
 
 
 -- return whether two expressions are equivalent, or Nothing if
@@ -58,7 +58,16 @@ testEquivalence tbl e1 e2 =
                      (_, Just _) -> Just True
                      (Nothing, Nothing) -> Nothing
                 
+proveEquivalence :: SymbolTable -> Expr -> Expr -> Maybe (SearchNode Expr Int)
+proveEquivalence tbl e1 e2 =                 
+     let Right (Matrix r1 c1 _) = treeMatrix e1 tbl 
+         Right (Matrix r2 c2 _) = treeMatrix e2 tbl
+         forward = astar e1 (astarSucc tbl (renameTmpRules tbl e2  )) (equivGoal e2) (heuristicCost (equivHeuristic e2)) 10 in
+         if (r1 /= r2 || c1 /= c2) 
+         then Nothing
+         else forward
 
+-- showProof (SearchNode n) = 
 
 ------------------------------------------------------------
 -- auxiliary rewrite rule generator for variable name changes.
