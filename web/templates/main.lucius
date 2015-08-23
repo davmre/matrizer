@@ -41,6 +41,15 @@ table {
   border: 0;
 }
 
+#optPathTbl td {
+  padding-right: 10px;
+  vertical-align: top;
+}
+
+#tblHeader {
+  font-weight: bold;
+}
+
 .global {
     table-layout: fixed;
     width: 90%;
