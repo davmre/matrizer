@@ -53,7 +53,7 @@ optimizationRules :: Rules
 baseRules = inverseRules ++ transposeRules ++ binopSumRules ++
     binopProductRules ++ ternProductRules ++ letExpRules ++ traceRules ++ detRules ++ diagRules ++ entrySumRules ++ hadamardProductRules ++ elementWiseRules
 
-optimizationRules = baseRules  ++ [("optimize chain produce", optimalProductRule)
+optimizationRules = baseRules  ++ [("optimize chain product", optimalProductRule)
                   , ("smart common factor", smartCommonFactor)
                   ]
 
@@ -135,7 +135,7 @@ traceRules = [("dissolveTrace", dissolveTrace)
 detRules :: Rules
 detRules = [("factorDet", factorDet)
             , ("detProps", detProps)
-            , ("logdet]", logdet)
+            , ("logdet", logdet)
             ]
 
 diagRules :: Rules
