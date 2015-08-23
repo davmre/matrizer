@@ -1,0 +1,8 @@
+A: n x n
+B: n x n
+C: n x n
+D: n x n
+n ~ 100
+
+# should optimize to (A+B)(C+D)
+r = (A+B) (C+D)
