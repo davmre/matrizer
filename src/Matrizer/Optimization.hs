@@ -116,8 +116,22 @@ type Beam = [BeamNode]
 -- compare two beamNodes ignoring their histories
 beamNodeEq (BeamNode e1 s1 _ _) (BeamNode e2 s2 _ _) =  (s1 == s2) && (e1==e2)
 
+-- output a beamNode history as readable text
+pprintOptPath n = let (s, k) = pprintOptPathHelper (Just n) in
+                      s
+ where pprintOptPathHelper Nothing = ("", 0)
+       pprintOptPathHelper (Just (BeamNode e s d Nothing)) = ("", 1)
+       pprintOptPathHelper (Just (BeamNode e s d n)) = 
+        let (prevS, k) = pprintOptPathHelper n 
+            newS = prevS ++ (show k) ++ ": applied " ++ d ++ ", score " ++ (show s) ++ "\n" ++ (pprint e) ++ "\n" in
+            (newS, k+1)               
+
+
+---------------------------------------------------------------
+
 beamSearchWrapper fn iters beamSize nRewrites tbl expr = 
-                  do beam <- beamSearch fn optimizationRules iters beamSize nRewrites tbl [(BeamNode expr 0 "" Nothing)] []
+                  do initScore <- fn  expr tbl
+                     beam <- beamSearch fn optimizationRules iters beamSize nRewrites tbl [(BeamNode expr initScore "" Nothing)] []
                      return $ head beam
 
 -- recursive wrapper function to iterate beam search

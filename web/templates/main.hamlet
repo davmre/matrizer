@@ -50,3 +50,5 @@
         <pre #numpy>
         <p>MATLAB code:
         <pre #matlab>
+        <p>Optimization path:
+        <pre #optPath>

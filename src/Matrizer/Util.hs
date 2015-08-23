@@ -45,13 +45,14 @@ runDebug tbl prgm = let beams = beamSearchDebug treeFLOPs optimizationRules 5 20
                     (Right bbeams) -> void $ mapM writeBeam (zip [1..(length bbeams)] bbeams)
                        where writeBeam (n, beam) = writeFile ("beam" ++ show n) (showBeam beam)
 
-doOptimize :: String -> Int -> Int -> Int -> ThrowsError (Expr, Expr, Expr, Int, Int)
+doOptimize :: String -> Int -> Int -> Int -> ThrowsError (Expr, Expr, Expr, Int, Int, BeamNode)
 doOptimize prgm iters beamSize nRewrites = 
            do (tbl, tree, mflops) <- doParse prgm
               ctree  <- makeConcrete tbl tree
               flops <- treeFLOPs ctree tbl
-              (BeamNode optTree dflops _ _) <- beamSearchWrapper treeFLOPs iters beamSize nRewrites tbl ctree
-              return $ (tree, ctree, optTree, flops, (flops+dflops))
+              node <- beamSearchWrapper treeFLOPs iters beamSize nRewrites tbl ctree
+              let (BeamNode optTree oflops _ _) = node in
+               return $ (tree, ctree, optTree, flops, oflops, node)
 
 loadConcrete :: String -> ThrowsError (SymbolTable, Expr)
 loadConcrete str = do (tbl, tree, mflops) <- doParse str
@@ -72,8 +73,9 @@ dumpInfo tbl raw_prgm = do prgm <- preprocess raw_prgm tbl
                            ctree <- makeConcrete tbl prgm
                            cmatr <- typeCheck ctree tbl
                            flops <- treeFLOPs ctree tbl
-                           (BeamNode optPrgm dflops _ _)  <- optimize ctree tbl                           
-                           return $ "Preamble symbol table: " ++ show tbl ++ "\nCode parsed as:\n" ++ pprint prgm ++ (if (ctree == prgm) then "" else "\nTransformed to concrete expression: " ++ pprint ctree ++ "\nType comparison: " ++ (show matr) ++ " vs " ++ (show cmatr)) ++ "\nNaive FLOPs required: " ++ show flops ++ "\nNaive code generated:\n" ++ generateNumpy ctree ++ "\n\nOptimized FLOPs required: " ++ show (flops+dflops)  ++"\nOptimized program:\n" ++ pprint optPrgm ++ "\nOptimized code generated:\n" ++ generateNumpy optPrgm
+                           optimizedBN  <- optimize ctree tbl                           
+                           let (BeamNode optPrgm oflops _ _) = optimizedBN in
+                            return $ "Preamble symbol table: " ++ show tbl ++ "\nCode parsed as:\n" ++ pprint prgm ++ (if (ctree == prgm) then "" else "\nTransformed to concrete expression: " ++ pprint ctree ++ "\nType comparison: " ++ (show matr) ++ " vs " ++ (show cmatr)) ++ "\nNaive FLOPs required: " ++ show flops ++ "\nNaive code generated:\n" ++ generateNumpy ctree ++ "\n\noptimizations:\n" ++ pprintOptPath  optimizedBN ++ "\n\nOptimized FLOPs required: " ++ show oflops  ++"\nOptimized program:\n" ++ pprint optPrgm ++ "\nOptimized code generated:\n" ++ generateNumpy optPrgm
 
 dumpRaw tbl raw_prgm = do prgm <- preprocess raw_prgm tbl
                           flops <- treeFLOPs prgm tbl      

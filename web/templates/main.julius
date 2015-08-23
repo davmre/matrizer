@@ -39,6 +39,7 @@ $(function(){
                 $("#optast").html(data.prgm);
                 $("#numpy").html(data.python);
                 $("#matlab").html(data.matlab);
+                $("#optPath").html(data.optPath);
                 $("#cflops").text(''+data.cflops);
                 $("#oflops").text(''+data.optFlops);
                 if (data.needsconcrete) {

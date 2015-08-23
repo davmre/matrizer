@@ -69,7 +69,7 @@ runTest (tbl, t1, t2) = do st1 <- preprocess t1 tbl
                            naive_flops <- treeFLOPs st1 tbl
                            soln_flops <- treeFLOPs st2 tbl
                            (BeamNode opt opt_flops _ _) <- optimize st1 tbl
-                           return $ (naive_flops, soln_flops, naive_flops + opt_flops, testEquivalence tbl opt st2)
+                           return $ (naive_flops, soln_flops, opt_flops, testEquivalence tbl opt st2)
 
 writePythonTest :: String -> IO ()
 writePythonTest  testname = do
