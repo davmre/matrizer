@@ -109,7 +109,7 @@ optimize expr tbl = beamSearchWrapper treeFLOPs 10 20 2 tbl expr
 ----------------------------------------------------------------
 type ScoreFn = (Expr -> SymbolTable -> ThrowsError Int)
 
-
+-- (expr score move length
 data BeamNode = BeamNode Expr Int String (Maybe BeamNode) deriving (Eq, Show, Ord)
 type Beam = [BeamNode]
 
@@ -160,7 +160,7 @@ beamIter rw beamSize nRewrites tbl oldBeam prevBeam =
        novel = [ BeamNode e i s b | (BeamNode e i s b) <- oldBeam, not $ elem e prevExps]
        ignored = [BeamNode e i s b | (BeamNode e i s b)  <- oldBeam, elem e prevExps] in
       do rewrites <- reOptimize nRewrites rw tbl novel
-         return $ take beamSize (sortBy (comparing beamScore) (rewrites ++ ignored))
+         return $ take beamSize (sortBy (comparing beamScore) (ignored ++ rewrites))
    where beamScore (BeamNode _ s _ _) = s
 
 -- for cse, same pattern of generating a list of rewrites and sorting them
