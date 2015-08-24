@@ -75,7 +75,7 @@ generateNumpy (Let lhs rhs tmp body) = lhs ++ " = " ++ (generateNumpy rhs) ++ "\
 generateTableNumpy :: SymbolTable -> String
 generateTableNumpy tbl = foldr (++) "" (map generateMatrixNumpy (Map.toList tbl))
 
-generateMatrixNumpy (v, (Matrix r c props)) = 
+generateMatrixNumpy (v, ((Matrix r c props, _))) = 
                     let randn r c = "np.random.randn(" ++ (show r) ++ ", " ++ (show c) ++ ")" in
                         if PosDef `elem` props
                         then "Ltmp = " ++ (randn r r) ++ "\n" ++ v ++ " = np.dot(Ltmp.T, Ltmp)\n"
@@ -137,5 +137,5 @@ generateMatlab (Let lhs rhs tmp (Leaf _)) = lhs ++ " = " ++ (generateMatlab rhs)
 generateMatlab (Let lhs rhs tmp body) = lhs ++ " = " ++ (generateMatlab rhs) ++ ";\n" ++ (generateMatlab body) 
 
 symTableMatlab :: SymbolTable -> String
-symTableMatlab tbl = foldl (++)  "" [tblEntry k m | (k,m) <- Map.toList tbl]  where
+symTableMatlab tbl = foldl (++)  "" [tblEntry k m | (k,(m, _)) <- Map.toList tbl]  where
   tblEntry k (Matrix n m _) = k ++ " = randn(" ++ (show n) ++ ", " ++ (show m) ++ ");\n"

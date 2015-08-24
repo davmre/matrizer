@@ -99,21 +99,3 @@ tmpMatrices tbl a@(Let lhs rhs False body) =
                let Right newTbl = tblBind a tbl in
                    tmpMatrices newTbl body
 tmpMatrices _ _ = []
-
--------------------------------------------------
-
---- derivative examples
-llSymbols = Map.fromList [("X", Matrix 100 100 []), ("A", Matrix 100 100 []), ("B", Matrix 100 100 []), ("C", Matrix 100 100 [])]
-inp = (Branch1 MTrace (Branch3 MTernaryProduct (Branch2 MProduct (Leaf "A") (Branch1 MTranspose (Leaf "X"))) (Leaf "B") (Branch2 MProduct (Leaf "X") (Leaf "C"))) )
-Just inp_deriv = differentiate llSymbols inp "X"
-target = (Branch2 MSum 
-            (Branch2 MProduct 
-               (Branch2 MProduct 
-                  (Branch2 MProduct (Leaf "C") (Leaf "A") ) 
-                  (Branch1 MTranspose (Leaf "X"))) 
-               (Leaf "B")  ) 
-            (Branch2 MProduct 
-               (Branch2 MProduct 
-                  (Branch2 MProduct (Branch1 MTranspose (Leaf "A")) (Branch1 MTranspose (Leaf "C")) ) 
-                  (Branch1 MTranspose (Leaf "X"))) 
-               (Branch1 MTranspose (Leaf "B")  ) ))

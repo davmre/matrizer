@@ -20,7 +20,7 @@ llexpr3 = (Branch2 MProduct (Branch1 MTranspose (Leaf "y")) (Leaf "y"))
 llexpr = (Branch2 MSum (Branch2 MDiff llexpr1 llexpr2 ) llexpr3)
 
 llSymbols :: SymbolTable
-llSymbols = Map.fromList [("X", Matrix 100 2 []), ("y", Matrix 100 1 []), ("w", Matrix 2 1 [])]
+llSymbols = Map.fromList [("X", (Matrix 100 2 [], Nothing)), ("y", (Matrix 100 1 [], Nothing)), ("w", (Matrix 2 1 [], Nothing))]
 
 llX = reduceDifferential "X" (Branch1 MTrace llexpr)
 
@@ -168,16 +168,8 @@ beamSearch2 fn iters beamSize nRewrites tbl beam =
                     beamSearch2 fn (iters-1) beamSize nRewrites tbl newBeam
 
 
-llSymbols2 :: SymbolTable
-llSymbols2 = Map.fromList [("X", Matrix 100 60 []), ("B", Matrix 100 100 []),("A", Matrix 100 100 []),("S", Matrix 60 60 []),("y", Matrix 100 1 []), ("C", Matrix 100 100 [])]
-
-pp = (Branch3 MTernaryProduct (Leaf "X") (Leaf "S") (Branch1 MTranspose (Leaf "X")))
-ll17 = (Branch1 MTrace (Branch3 MTernaryProduct (Leaf "A") (Branch1 MInverse pp) (Leaf "B")))
-dl17 = reduceDifferential "X" ll17
 
 
-llS = Map.fromList [("X", Matrix 100 2 []), ("w", Matrix 2 1 []),("d", Matrix 2 1 []) ]
-r = (Branch2 MSum (Branch2 MProduct (Branch2 MProduct (Branch2 MProduct (Branch1 MTranspose (Leaf "d")) (Branch1 MTranspose (Leaf "X"))) (Leaf "X")) (Leaf "w")) (Branch2 MProduct (Branch2 MProduct (Branch2 MProduct (Branch1 MTranspose (Leaf "w")) (Branch1 MTranspose (Leaf "X"))) (Leaf "X")) (Leaf "d")))
 
 decompose :: Expr -> [(Float, Expr)]
 decompose (Branch2 MScalarProduct (LiteralScalar c) a) = [(c1*c, d) | (c1, d) <- decompose a]
@@ -198,9 +190,6 @@ factoredAstar tbl expr =
    where recompose ((f, expr):[]) = rescale f expr
          recompose ((f, expr):xs) = (Branch2 MSum (rescale f expr) (recompose xs))
          rescale f expr = if f == 1 then expr else (Branch2 MScalarProduct (LiteralScalar f) expr)
-
--- llexpr_trivial = (Branch1 MTrace (Branch3 MTernaryProduct (Leaf "A")  (Branch1 MTranspose (Leaf "X")) (Leaf "B")))
-llexpr_trivial = (Branch3 MTernaryProduct  (Branch1 MTranspose (Leaf "y")) (Branch1 MInverse (Leaf "K")) (Leaf "y"))
 
 
 differentiate :: SymbolTable -> Expr -> VarName -> Maybe Expr
@@ -226,8 +215,6 @@ differentiateBySearch tbl expr c =
 derivFromAstar :: SymbolTable -> Expr -> Maybe Expr
 derivFromAstar tbl expr = do r <- runAstar tbl expr
                              extractDeriv tbl (nvalue r)
-
-
                            
 reduceWithTrace tbl expr c = let d = reduceDifferential c expr 
                                  Right (Matrix d1 d2 dprops) = treeMatrix d tbl in

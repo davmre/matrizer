@@ -11,8 +11,35 @@ import Matrizer.MTypes
 import Matrizer.Derivatives
 import Matrizer.Analysis
 
+-- ground out all intermediate variables to write an expression only
+-- in terms of toplevel vars. vx specifies an "honorary toplevel var",
+-- typically the variable we're taking the derivative with respect to.
+groundAll :: SymbolTable -> VarName -> Expr -> ThrowsError Expr
+groundAll tbl vx (Leaf v) = if vx == v then return (Leaf v)
+          else do lookup <- ( maybe (throwError $ UnboundName v) (return . snd)  (Map.lookup v tbl) )
+                  case lookup of
+                   Nothing -> return (Leaf v)
+                   Just e -> return e
+groundAll tbl vx (Branch1 op e) = do ce <- groundAll tbl vx e
+                                     return  (Branch1 op ce)
+groundAll tbl vx (Branch2 op a b) = do ca <- groundAll tbl vx a
+                                       cb <- groundAll tbl vx b
+                                       return (Branch2 op ca cb)
+groundAll tbl vx (Branch3 op a b c) = do ca <- groundAll tbl vx a
+                                         cb <- groundAll tbl vx b
+                                         cc <- groundAll tbl vx c
+                                         return (Branch3 op ca cb cc)
+groundAll tbl vx (Let lhs rhs tmp body) = do crhs <- (groundAll tbl vx rhs)
+                                             letMatrix <- treeMatrix crhs tbl
+                                             let newtbl = Map.insert lhs (letMatrix, Just rhs) tbl
+                                             cbody <- (groundAll newtbl vx body)
+                                             return $ Let lhs crhs tmp cbody
+groundAll tbl vx e = return e
+
+
 makeConcrete :: SymbolTable -> Expr -> ThrowsError Expr
-makeConcrete tbl (Branch1 (MDeriv v) a) = case differentiate tbl a v of
+makeConcrete tbl (Branch1 (MDeriv v) a) = do grounded <- groundAll tbl v a 
+                                             case differentiate tbl grounded v of
                                                Just e -> Right e
                                                Nothing -> throwError $ DerivativeFail a v
 makeConcrete tbl (Branch1 op e) = do ce <- makeConcrete tbl e
@@ -25,7 +52,9 @@ makeConcrete tbl (Branch3 op a b c) = do ca <- makeConcrete tbl a
                                          cc <- makeConcrete tbl c
                                          return (Branch3 op ca cb cc)
 makeConcrete tbl (Let lhs rhs tmp body) = do crhs <- (makeConcrete tbl rhs)
-                                             cbody <- (makeConcrete tbl body)
+                                             letMatrix <- treeMatrix crhs tbl
+                                             let newtbl = Map.insert lhs (letMatrix, Just rhs) tbl
+                                             cbody <- (makeConcrete newtbl body)
                                              return $ Let lhs crhs tmp cbody
 makeConcrete tbl e = return e
 
@@ -76,6 +105,6 @@ preprocess (Branch2 op a b) tbl = do newA <- preprocess a tbl
 preprocess (Branch3 _ _ _ _) _ = throwError $ AnalysisError "encountered a ternop while parsing identity matrices, but the parser should never produce ternops!"
 preprocess (Let lhs rhs tmp body) tbl  = do newRHS <- preprocess rhs tbl
                                             letMatrix <- treeMatrix newRHS tbl
-                                            let newtbl = Map.insert lhs letMatrix tbl
+                                            let newtbl = Map.insert lhs (letMatrix, Just rhs) tbl
                                             newBody <- preprocess body newtbl
                                             return $ Let lhs newRHS tmp newBody

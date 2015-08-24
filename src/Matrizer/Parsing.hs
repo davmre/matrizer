@@ -204,11 +204,11 @@ parseInput = do lns <- parsePreamble
 -- sizes (i.e. convert MatrixSym to Matrix).
 --------------------------------------------------------------------------------------
 
-subSymbolDefMatrix :: Map.Map Char Int -> (VarName, MatrixSym) -> ThrowsError (VarName, Matrix)
+subSymbolDefMatrix :: Map.Map Char Int -> (VarName, MatrixSym) -> ThrowsError (VarName, (Matrix, Maybe Expr))
 subSymbolDefMatrix defs (c, (MatrixSym sym1 sym2 propList)) =
     do n1 <- subSymbolDef sym1 defs
        n2 <- subSymbolDef sym2 defs
-       return (c, Matrix n1 n2 (inferProps propList) )
+       return (c, (Matrix n1 n2 (inferProps propList), Nothing) )
 
 inferProps :: [MProperty] -> [MProperty]
 inferProps propList = if (PosDef `elem` propList) && (not $ Symmetric `elem` propList)

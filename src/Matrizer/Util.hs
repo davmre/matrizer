@@ -22,7 +22,7 @@ import Control.Monad
 ---------------------------------------------------------------
 
 fakeSymbols :: SymbolTable
-fakeSymbols = Map.fromList [("A", Matrix 1000 1000 []), ("B", Matrix 1000 1000 []), ("x", Matrix 1000 1 [])]
+fakeSymbols = Map.fromList [("A", (Matrix 1000 1000 [], Nothing)), ("B", (Matrix 1000 1000 [], Nothing)), ("x", (Matrix 1000 1 [], Nothing))]
 
 fakeTree :: Expr
 fakeTree = Branch2 MProduct (Branch2 MProduct (Leaf "A") (Leaf "B") ) (Leaf "x")

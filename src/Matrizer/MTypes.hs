@@ -101,7 +101,7 @@ pprint (Let v a tmp b) = "(let (" ++ v ++ " := " ++ pprint a ++ (if tmp then " #
 -- Symbol Table Definition
 ------------------------------------------------------------------------
 
-type SymbolTable = Map.Map VarName Matrix
+type SymbolTable = Map.Map VarName (Matrix, Maybe Expr)
 
 data MatrixSym = MatrixSym String String [MProperty]
 data Matrix = Matrix Int Int [MProperty]
