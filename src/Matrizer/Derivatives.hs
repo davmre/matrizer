@@ -14,17 +14,14 @@ import Matrizer.Search
 
 import Debug.Trace
 
-llexpr1 = (Branch3 MTernaryProduct (Branch1 MTranspose (Leaf "w")) (Branch2 MProduct (Branch1 MTranspose (Leaf "X")) (Leaf "X") ) (Leaf "w"))
-llexpr2 = (Branch2 MScalarProduct (LiteralScalar 2) (Branch2 MProduct (Branch1 MTranspose (Leaf "w")) (Branch2 MProduct (Branch1 MTranspose (Leaf "X")) (Leaf "y"))))
-llexpr3 = (Branch2 MProduct (Branch1 MTranspose (Leaf "y")) (Leaf "y"))
-llexpr = (Branch2 MSum (Branch2 MDiff llexpr1 llexpr2 ) llexpr3)
 
-llSymbols :: SymbolTable
-llSymbols = Map.fromList [("X", (Matrix 100 2 [], Nothing)), ("y", (Matrix 100 1 [], Nothing)), ("w", (Matrix 2 1 [], Nothing))]
-
-llX = reduceDifferential "X" (Branch1 MTrace llexpr)
-
-
+-- rewrite rules for differentials.
+--  inspired by Minka's "Old and New Matrix Algebra Useful for Statistics":
+--   https://tminka.github.io/papers/matrix/
+-- for an expression y(x), define the differential dy(x) as the part of
+--    y(x + dx) - y(x)
+-- that is linear in dx. Given an expression for y(x), goal is to manipulate
+-- dy(x) until we can directly read off the coefficient for dx.
 reduceDifferential :: VarName -> Expr -> Expr
 reduceDifferential v (Leaf a) = if a==v 
                                     then Branch1 MDifferential (Leaf a)
@@ -71,7 +68,6 @@ reduceDifferential v (Branch1 MInverse a) =
                    case d of
                    (ZeroLeaf _ _) -> (ZeroLeaf 1 1)
                    _ -> (Branch3 MTernaryProduct (Branch2 MScalarProduct (LiteralScalar (-1)) (Branch1 MInverse a)) d (Branch1 MInverse a))
-                   -- _ -> (Branch3 MTernaryProduct (Branch1 MInverse a) d (Branch1 MInverse a))
 reduceDifferential v (Branch1 MDet a) = 
                    let d = (reduceDifferential v a) in
                    case d of
@@ -123,6 +119,7 @@ totalDepthHeuristic e _ = -- Right (5 * (sum $ depthHeuristic e) )
                           -- Right $ 5 * (sum $ depthHeuristic e) + (treeSize e)
 tdh tbl e = let Right v = totalDepthHeuristic e tbl in 
                 v
+
 
 astarSucc tbl e = let Right moves = rewriteMoves totalDepthHeuristic optimizationRules tbl (BeamNode e 0 "" Nothing) in
                            [(expr, 1, Just d) | (BeamNode expr _ d _) <- moves]
@@ -192,6 +189,10 @@ factoredAstar tbl expr =
          rescale f expr = if f == 1 then expr else (Branch2 MScalarProduct (LiteralScalar f) expr)
 
 
+-- convert an expression into another expression representing its
+-- derivative wrt a given variable. Apply some trivial optimizations
+-- based on linearity, otherwise apply search over differential
+-- rewrites.
 differentiate :: SymbolTable -> Expr -> VarName -> Maybe Expr
 differentiate tbl (Branch2 MSum a b) c = do da <- differentiate tbl a c
                                             db <- differentiate tbl b c
@@ -221,42 +222,3 @@ reduceWithTrace tbl expr c = let d = reduceDifferential c expr
                                  if (d1==1 && d2==1) then (Branch1 MTrace d) else d
 
 
-e1 = (Branch1 MDet (Branch2 MProduct (Branch1 MTranspose (Leaf "K")) (Leaf "K")))
-
-pt = (Branch2 MProduct (Branch1 MTranspose (Leaf "K")) (Leaf "K"))
-d2 = Branch1 MTrace (Branch2 MScalarProduct (LiteralScalar 2.0) (Branch2 MScalarProduct (Branch1 MDet pt) (Branch1 MTrace (Branch2 MProduct (Branch1 MInverse pt) (Branch2 MProduct (Branch1 MTranspose (Leaf "K")) (Branch1 MDifferential (Leaf "K"))) )) ))
-
-d2lite = Branch1 MTrace  (Branch2 MScalarProduct pt (Branch1 MTrace  (Branch2 MProduct (Branch1 MInverse pt) (Branch2 MSum (Branch2 MProduct (Branch1 MTranspose (Branch1 MDifferential (Leaf "K")))  (Leaf "K")  ) (Branch2 MProduct (Branch1 MTranspose (Leaf "K")) (Branch1 MDifferential (Leaf "K"))  ) ))))
-
-d2ll =  Branch1 MTrace  (Branch1 MTrace (Branch2 MScalarProduct (LiteralScalar 2.0) (Branch2 MProduct (Branch1 MInverse pt)  (Branch2 MProduct (Branch1 MTranspose (Branch1 MDifferential (Leaf "K")))  (Leaf "K")  )  )))
-
-d3 = reduceDifferential "K" e1
-
-
-e2 = (Branch2 MSum (Branch1 (MElementWise MLog) (Branch1 MDet (Leaf "K"))) (Branch2 MProduct (Branch2 MProduct (Branch1 MTranspose (Leaf "y")) (Branch1 MInverse (Leaf "K"))) (Leaf "y")))
-d6 = reduceDifferential "K" e2
-
--- collectDifferential tbl v Expr -> Maybe Expr
--- collectDifferential tbl v (Branch1 MDifferential (Leaf a)) = 
---            do (Matrix r1 c1 _) <- (Map.lookup a tbl)           
---               if a==v then Just (IdentityLeaf r1)
---               else Just (ZeroLeaf r1 c1)
--- collectDifferential tbl v (Leaf a) = Nothing
--- collectDifferential tbl v (IdentityLeaf n) = Nothing
--- collectDifferential tbl v (ZeroLeaf n) = Nothing
--- collectDifferential tbl v (LiteralScalar a) = Nothing
--- collectDifferential tbl v (Branch2 MProduct a (Branch1 MDifferential (Leaf b))) = if v==b then Just a
-
--- differentiate SymbolTable -> Expr -> Expr
--- differentiate tbl (Branch1 (MDeriv v) e) = (Branch1 (MUnresolvedDeriv v) (MDifferential (differentiate tbl e)))
-
-
-
--- so we start with a (deriv v e), from which we should already be
--- able to compute an output dimension.  then we can run reduceDifferential
--- which gives back an expression in which the only derivs are
--- elemental dX.-- In most cases we just want the coefficients of the
--- dXs. One way to do this is to write another function that accepts a
--- reduced expression and bubbles up the sum of the coefficients on
--- differential terms. Another way is to modify reduceDifferential to do this
--- directly.

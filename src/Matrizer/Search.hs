@@ -11,6 +11,7 @@ import Data.Ix
 import qualified Data.Sequence as Seq
 import Debug.Trace
 
+-- define a search node to contain a value, path cost, and optionally a pointer to the previous node and a string describing the most recent transition
 data SearchNode n c  = SearchNode {nvalue :: n, gcost :: c, nprev :: Maybe (SearchNode n c), move :: Maybe String} deriving (Eq, Show, Ord)
 
 pprint::  (Ord n, Real c, Show c, Show n) => ( SearchNode n c -> c ) -> SearchNode n c -> String
@@ -30,11 +31,10 @@ pprint heuristic sn = let gc = gcost sn
 astar :: (Ord n, Real c, Show c, Show n) => n -> (n -> [(n,c, Maybe String)]) -> (n -> Bool) -> ( SearchNode n c -> c ) -> c -> Maybe (SearchNode n c)
 astar start succ goalCheck cost maxCost = astarIter (Heap.singleton (0, SearchNode {nvalue=start, gcost=0, nprev=Nothing, move=Nothing})) Set.empty succ goalCheck cost maxCost
 
--- how to structure a*? there is an iterative helper: given the fringe, we pop off an element, run the goal check, compute its successors, check closed set, add to fringe. 
+-- iterative helper for A*: given the fringe, we pop off an element, run the goal check, compute its successors, check closed set, add to fringe. 
 astarIter :: (Ord n, Real c, Show c, Show n) => Heap.MinPrioHeap c (SearchNode n c) -> Set.Set n -> (n -> [(n, c, Maybe String)]) -> (n -> Bool) -> (SearchNode n c -> c) -> c -> Maybe (SearchNode n c)
 astarIter fringe closed succ goalCheck cost maxCost = 
           do ((fcost, current ), diminishedFringe) <- Heap.view fringe
-             --if goalCheck (nvalue (trace (pprint cost current) current)) then return current
              if goalCheck (nvalue  current) then return current
              else if (gcost current) > maxCost then Nothing
              else let newClosed = Set.insert (nvalue current) closed
